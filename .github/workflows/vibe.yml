@@ -11,6 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with: { fetch-depth: 2 } # amend needs HEAD's parent; depth 1 would turn the amend into a history-wiping root commit
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
       - run: node scripts/vibe.mjs
@@ -28,5 +29,10 @@ jobs:
       - run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -am "vibe update" || exit 0
-          git push
+          git diff --quiet && exit 0
+          # Replace the previous vibe commit instead of stacking a new one, so past lines don't pile up in history
+          if [ "$(git log -1 --format='%an|%s')" = "github-actions[bot]|vibe update" ]; then
+            git commit -a --amend --no-edit && git push --force-with-lease
+          else
+            git commit -am "vibe update" && git push
+          fi
