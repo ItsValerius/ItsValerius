@@ -2,5 +2,5 @@
 
 **Today's vibe** (powered by my WHOOP):
 <!-- VIBE:START -->
-🔋 fully charged · ☕ decent night · 🏃 on a streak
+<img src="vibe.svg" alt="🔋 fully charged · ☕ decent night · 🚴 on a roll · 🔥 12+ weeks active · 🛠️ tinkering with biwak">
 <!-- VIBE:END -->
