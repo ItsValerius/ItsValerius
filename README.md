@@ -2,5 +2,5 @@
 
 **Today's vibe** (powered by my WHOOP):
 <!-- VIBE:START -->
-🌫️ signal lost
+🔋 fully charged · ☕ decent night · 🏃 on a streak
 <!-- VIBE:END -->
