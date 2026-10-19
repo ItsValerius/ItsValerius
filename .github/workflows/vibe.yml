@@ -10,9 +10,9 @@ jobs:
   vibe:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with: { fetch-depth: 2 } # amend needs HEAD's parent; depth 1 would turn the amend into a history-wiping root commit
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with: { node-version: 22 }
       - run: node scripts/vibe.mjs
         env:
@@ -20,6 +20,7 @@ jobs:
           WHOOP_CLIENT_SECRET: ${{ secrets.WHOOP_CLIENT_SECRET }}
           WHOOP_REFRESH_TOKEN: ${{ secrets.WHOOP_REFRESH_TOKEN }}
           NEW_TOKEN_FILE: ${{ runner.temp }}/rt
+          GITHUB_TOKEN: ${{ github.token }}
       # always(): the old token is already dead once refreshed, so save the new one even if a later API call failed
       - name: Save rotated refresh token
         if: always()
@@ -29,10 +30,11 @@ jobs:
       - run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git diff --quiet && exit 0
+          git add -A
+          git diff --cached --quiet && exit 0
           # Replace the previous vibe commit instead of stacking a new one, so past lines don't pile up in history
           if [ "$(git log -1 --format='%an|%s')" = "github-actions[bot]|vibe update" ]; then
-            git commit -a --amend --no-edit && git push --force-with-lease
+            git commit --amend --no-edit && git push --force-with-lease
           else
-            git commit -am "vibe update" && git push
+            git commit -m "vibe update" && git push
           fi
