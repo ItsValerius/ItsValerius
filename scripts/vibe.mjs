@@ -1,5 +1,6 @@
 // Turns WHOOP data into a deliberately vague status card. No raw numbers ever leave this file.
 import { readFileSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 
 const API = 'https://api.prod.whoop.com/developer/v2';
 const USER = 'ItsValerius';
@@ -131,9 +132,12 @@ async function main() {
     workouts: wo,
     repo,
   });
-  writeFileSync('vibe.svg', card(summary));
+  const svg = card(summary);
+  writeFileSync('vibe.svg', svg);
+  // New URL whenever the card changes, so browsers and GitHub's image cache can't show yesterday's card.
+  const v = createHash('sha256').update(svg).digest('hex').slice(0, 8);
   const readme = readFileSync('README.md', 'utf8');
-  const img = `<img src="vibe.svg" alt="${esc(altText(summary))}">`;
+  const img = `<img src="vibe.svg?v=${v}" alt="${esc(altText(summary))}">`;
   writeFileSync('README.md', readme.replace(/(<!-- VIBE:START -->)[\s\S]*?(<!-- VIBE:END -->)/, `$1\n${img}\n$2`));
   console.log(altText(summary));
 }
