@@ -1,6 +1,6 @@
 name: Update vibe
 on:
-  schedule: [{ cron: '0 7 * * *' }] # once a day, so it reflects last night, not right now
+  schedule: [{ cron: '0 7 * * *' }]
   workflow_dispatch:
 
 permissions:
@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-        with: { fetch-depth: 2 } # amend needs HEAD's parent; depth 1 would turn the amend into a history-wiping root commit
+        with: { fetch-depth: 2 } # --amend needs HEAD's parent; at depth 1 it would create a new root commit
       - uses: actions/setup-node@v5
         with: { node-version: 22 }
       - run: node scripts/vibe.mjs
@@ -21,7 +21,7 @@ jobs:
           WHOOP_REFRESH_TOKEN: ${{ secrets.WHOOP_REFRESH_TOKEN }}
           NEW_TOKEN_FILE: ${{ runner.temp }}/rt
           GITHUB_TOKEN: ${{ github.token }}
-      # always(): the old token is already dead once refreshed, so save the new one even if a later API call failed
+      # Runs even if the update failed: the old refresh token is invalid once used
       - name: Save rotated refresh token
         if: always()
         run: '[ ! -s "$RUNNER_TEMP/rt" ] || gh secret set WHOOP_REFRESH_TOKEN -R "$GITHUB_REPOSITORY" < "$RUNNER_TEMP/rt"'
@@ -32,7 +32,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
           git diff --cached --quiet && exit 0
-          # Replace the previous vibe commit instead of stacking a new one, so past lines don't pile up in history
+          # Amend the previous bot commit so history keeps only the latest card
           if [ "$(git log -1 --format='%an|%s')" = "github-actions[bot]|vibe update" ]; then
             git commit --amend --no-edit && git push --force-with-lease
           else

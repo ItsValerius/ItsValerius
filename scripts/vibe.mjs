@@ -1,4 +1,4 @@
-// Turns WHOOP data into a deliberately vague status card. No raw numbers ever leave this file.
+// Builds the profile card from WHOOP data. Only coarse buckets are published, never raw values.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 
@@ -6,7 +6,6 @@ const API = 'https://api.prod.whoop.com/developer/v2';
 const USER = 'ItsValerius';
 const DAY = 864e5;
 
-// Coarse buckets on purpose: 3 levels each, so the README can't be used to track trends.
 export function summarize({ recovery, sleep, workouts, repo, now = Date.now() }) {
   const level = recovery == null ? 'unknown' : recovery >= 67 ? 'high' : recovery >= 34 ? 'mid' : 'low';
   const heading = { unknown: 'Signal lost', high: 'Fully charged', mid: 'Cruising', low: 'Low-power mode' }[level];
@@ -33,7 +32,7 @@ export const altText = ({ heading, rows }) => [heading, ...rows.map((r) => r.tex
 
 const esc = (s) => s.replace(/[<>&"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' })[c]);
 
-// Lucide icons (ISC license), 24px grid, so they render the same everywhere (emoji depend on the viewer's fonts).
+// Lucide icons (ISC license), 24px grid.
 const ICONS = {
   moon: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
   pulse: '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
@@ -42,7 +41,7 @@ const ICONS = {
 };
 const icon = (name, x, y, size, cls) => `<g class="${cls}" transform="translate(${x} ${y}) scale(${size / 24})" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[name]}</g>`;
 
-// Battery segments filled per level: the energy colour lives here, not on a border.
+// Battery with 0–3 filled segments for the recovery level.
 function battery(level, x, y) {
   const filled = { unknown: 0, low: 1, mid: 2, high: 3 }[level];
   const segs = [0, 1, 2].map((i) => `<rect x="${3.6 + i * 4}" y="7.6" width="3.2" height="4.8" rx=".8" class="${i < filled ? `lv-${level}` : 'seg'}"/>`).join('');
@@ -85,7 +84,7 @@ async function token() {
   });
   if (!res.ok) throw new Error(`token refresh failed: ${res.status}`);
   const t = await res.json();
-  // WHOOP invalidates the old refresh token now; the workflow saves this one back into the repo secret.
+  // WHOOP rotates refresh tokens; the workflow stores this one as the new secret.
   writeFileSync(process.env.NEW_TOKEN_FILE ?? '.new_refresh_token', t.refresh_token);
   return t.access_token;
 }
@@ -107,7 +106,7 @@ async function workoutsSince(start, accessToken) {
   return all;
 }
 
-// Public pushes only, so this never reveals private repos. Best effort: a GitHub hiccup shouldn't kill the card.
+// Public events only. Errors are ignored so the card still renders.
 async function lastPushedRepo() {
   try {
     const headers = process.env.GITHUB_TOKEN ? { Authorization: `Bearer ${process.env.GITHUB_TOKEN}` } : {};
@@ -134,7 +133,7 @@ async function main() {
   });
   const svg = card(summary);
   writeFileSync('vibe.svg', svg);
-  // New URL whenever the card changes, so browsers and GitHub's image cache can't show yesterday's card.
+  // Content hash in the URL so GitHub's image cache can't serve a stale card.
   const v = createHash('sha256').update(svg).digest('hex').slice(0, 8);
   const readme = readFileSync('README.md', 'utf8');
   const img = `<img src="vibe.svg?v=${v}" alt="${esc(altText(summary))}">`;
