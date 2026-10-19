@@ -18,6 +18,13 @@ jobs:
           WHOOP_CLIENT_ID: ${{ secrets.WHOOP_CLIENT_ID }}
           WHOOP_CLIENT_SECRET: ${{ secrets.WHOOP_CLIENT_SECRET }}
           WHOOP_REFRESH_TOKEN: ${{ secrets.WHOOP_REFRESH_TOKEN }}
+          NEW_TOKEN_FILE: ${{ runner.temp }}/rt
+      # always(): the old token is already dead once refreshed, so save the new one even if a later API call failed
+      - name: Save rotated refresh token
+        if: always()
+        run: '[ ! -s "$RUNNER_TEMP/rt" ] || gh secret set WHOOP_REFRESH_TOKEN -R "$GITHUB_REPOSITORY" < "$RUNNER_TEMP/rt"'
+        env:
+          GH_TOKEN: ${{ secrets.SECRETS_PAT }}
       - run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

@@ -23,7 +23,10 @@ async function token() {
     }),
   });
   if (!res.ok) throw new Error(`token refresh failed: ${res.status}`);
-  return (await res.json()).access_token;
+  const t = await res.json();
+  // WHOOP invalidates the old refresh token now; the workflow saves this one back into the repo secret.
+  writeFileSync(process.env.NEW_TOKEN_FILE ?? '.new_refresh_token', t.refresh_token);
+  return t.access_token;
 }
 
 async function get(path, accessToken) {
