@@ -1,6 +1,6 @@
 name: Update vibe
 on:
-  schedule: [{ cron: '0 7 * * *' }]
+  schedule: [{ cron: '7 5 * * *' }]
   workflow_dispatch:
 
 permissions:
