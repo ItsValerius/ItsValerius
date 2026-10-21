@@ -45,19 +45,22 @@ const ICONS = {
 };
 const icon = (name, x, y, size, cls) => `<g class="${cls}" transform="translate(${x} ${y}) scale(${size / 24})" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[name]}</g>`;
 
-// Battery with 0–3 filled segments for the recovery level.
-function battery(level, x, y) {
-  const filled = { unknown: 0, low: 1, mid: 2, high: 3 }[level];
-  const segs = [0, 1, 2].map((i) => `<rect x="${3.6 + i * 4}" y="7.6" width="3.2" height="4.8" rx=".8" class="${i < filled ? `lv-${level}` : 'seg'}"/>`).join('');
-  return `<g transform="translate(${x} ${y}) scale(1.4)"><rect x="1.8" y="5.8" width="14.4" height="8.4" rx="2.2" fill="none" stroke-width="1.4" class="ink"/><path d="M18 8.6v2.8" stroke-width="1.6" stroke-linecap="round" class="ink"/>${segs}</g>`;
+// Gen 3 battle-box HP bar in 2px cells: a yellow "HP" tag, then a 48-cell bar filled by recovery level.
+function hpBar(level, x, y) {
+  const cell = (cx, cy, w, h, paint) => `<rect x="${x + cx * 2}" y="${y + cy * 2}" width="${w * 2}" height="${h * 2}" ${paint}/>`;
+  const glyph = ['1.1.111', '1.1.1.1', '111.111', '1.1.1..', '1.1.1..'];
+  const tag = glyph.flatMap((r, j) => [...r].map((c, i) => (c === '1' ? cell(2 + i, 1 + j, 1, 1, 'fill="#f8d030"') : ''))).join('');
+  const fill = { unknown: 0, low: 12, mid: 24, high: 48 }[level];
+  const bar = fill ? cell(10, 2, fill, 3, `class="lv-${level}"`) + cell(10, 4, fill, 1, 'fill="#000" fill-opacity=".2"') : '';
+  return `<g shape-rendering="crispEdges">${cell(1, 0, 58, 7, 'fill="#283040"')}${cell(0, 1, 60, 5, 'fill="#283040"')}${tag}${cell(10, 2, 48, 3, 'fill="#506070"')}${bar}</g>`;
 }
 
 // Pixel-art sprite of me in a GBA overworld style, 18x24 cells of 4px. Fills are drawn first, then every empty
 // cell touching a fill becomes the dark outline; limbs in front of the body get a second outline pass.
-// R/r/d hair base/highlight/shadow, H/h skin/shade, E eyes, M smile, J/j/k jersey base/shadow/highlight,
+// R/r/d hair base/highlight/shadow, H/h skin/shade, E eyes, J/j/k jersey base/shadow/highlight,
 // W white, F shoes, G shoe stripe (recovery level colour), B/b/c ball base/seam/highlight.
 const GW = 18, GH = 24, PX = 4;
-const PALETTE = { o: '#283040', R: '#b06a38', r: '#e09a60', d: '#7a4424', H: '#f8d0a8', h: '#d89c70', E: '#283040', M: '#a04838',
+const PALETTE = { o: '#283040', R: '#b06a38', r: '#e09a60', d: '#7a4424', H: '#f8d0a8', h: '#d89c70', E: '#283040',
   J: '#2c64d0', j: '#1c3f94', k: '#6094f0', W: '#f8f8f8', F: '#e8dcc0', B: '#f08030', b: '#a04010', c: '#f8c070' };
 
 function sprite(draw, overlay = () => {}) {
@@ -97,7 +100,6 @@ function front(set, row, { bob = 0, asleep = false } = {}) {
   if (asleep) { S(5, 7, 'E'); S(10, 7, 'E'); } else { S(5, 6, 'E'); S(5, 7, 'E'); S(10, 6, 'E'); S(10, 7, 'E'); }
   R(8, 3, 12, 'H'); S(3, 8, 'h'); S(12, 8, 'h');
   R(9, 4, 11, 'H');
-  if (asleep) R(9, 7, 8, 'M'); else { S(5, 8, 'M'); S(10, 8, 'M'); R(9, 6, 9, 'M'); }
   R(10, 5, 10, 'h');
   R(11, 4, 11, 'J'); R(11, 6, 9, 'h'); S(4, 11, 'k');
   for (let y = 12; y <= 16; y++) { R(y, 4, 11, 'J'); S(4, y, 'k'); S(11, y, 'j'); }
@@ -122,8 +124,8 @@ function side(set, row, { legs, bob = 0 }) {
   R(5, 3, 12, 'R'); R(5, 8, 11, 'H'); S(12, 5, 'R');
   R(6, 3, 12, 'H'); R(6, 3, 6, 'R'); S(4, 6, 'd');
   R(7, 4, 13, 'H'); S(4, 7, 'R'); S(5, 7, 'd'); S(7, 7, 'h'); S(7, 6, 'h'); S(11, 6, 'E'); S(11, 7, 'E');
-  R(8, 4, 13, 'H'); S(4, 8, 'd'); S(12, 8, 'M');
-  R(9, 5, 12, 'H'); S(11, 9, 'M'); S(12, 9, 'h');
+  R(8, 4, 13, 'H'); S(4, 8, 'd');
+  R(9, 5, 12, 'H'); S(12, 9, 'h');
   R(10, 6, 11, 'h');
   for (let y = 11; y <= 16; y++) { R(y, 5, 10, 'J'); S(5, y, 'j'); S(10, y, 'k'); }
   R(11, 8, 9, 'h');
@@ -175,7 +177,7 @@ function backdrop(kind, x, y, w, h, dur, scroll) {
     return `<pattern id="bd" width="${16 * PX}" height="${6 * PX}" patternUnits="userSpaceOnUse" x="${x}" y="${y}"><rect width="${16 * PX}" height="${6 * PX}" fill="#e0a868"/>${planks}</pattern>
 <rect x="${x}" y="${y}" width="${w}" height="${h}" fill="url(#bd)"/>`;
   }
-  const tuft = [[1, 1, '#58a840'], [2, 0, '#58a840'], [3, 1, '#58a840'], [5, 4, '#58a840'], [6, 3, '#58a840'], [7, 4, '#58a840'], [2, 6, '#c8f0a0'], [6, 0, '#c8f0a0']];
+  const tuft = [[1, 1, '#70b858'], [2, 0, '#70b858'], [3, 1, '#70b858'], [5, 4, '#70b858'], [6, 3, '#70b858'], [7, 4, '#70b858'], [2, 6, '#c8f0a0'], [6, 0, '#c8f0a0']];
   const anim = scroll ? ` class="fx" style="animation:scroll ${dur}s steps(2,end) infinite"` : '';
   // One tile wider than the panel so it can scroll left by a tile and loop.
   return `<pattern id="bd" width="${8 * PX}" height="${8 * PX}" patternUnits="userSpaceOnUse" x="${x}" y="${y}"><rect width="${8 * PX}" height="${8 * PX}" fill="#90d070"/>${tuft.map(([cx, cy, c]) => cell(cx, cy, c)).join('')}</pattern>
@@ -207,7 +209,7 @@ function figure(name, level, x, y) {
 
 export function card(summary) {
   const { level, heading, rows, scene } = summary;
-  const W = 480, top = 28, rowStart = 92, step = 30;
+  const W = 480, top = 28, rowStart = 104, step = 30;
   const h = Math.max(rowStart + (rows.length - 1) * step + 28, scene ? 124 : 0);
   const body = rows.map((r, i) => {
     const base = rowStart + i * step;
@@ -216,13 +218,12 @@ export function card(summary) {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${h}" viewBox="0 0 ${W} ${h}" role="img" aria-label="${esc(altText(summary))}">
 <style>
 .bg{fill:#ffffff;stroke:#d1d9e0}.hd{fill:#1f2328;font:600 21px system-ui,-apple-system,"Segoe UI",sans-serif;letter-spacing:-.01em}
-.t{fill:#1f2328;font:15px system-ui,-apple-system,"Segoe UI",sans-serif}.mut{stroke:#59636e}.ink{stroke:#1f2328;fill:none}.seg{fill:#d1d9e0}
-.lv-high{fill:#1a7f37}.lv-mid{fill:#9a6700}.lv-low{fill:#cf222e}
-@media (prefers-color-scheme:dark){.bg{fill:#0d1117;stroke:#3d444d}.hd,.t{fill:#f0f6fc}.mut{stroke:#9198a1}.ink{stroke:#f0f6fc}.seg{fill:#3d444d}
-.lv-high{fill:#3fb950}.lv-mid{fill:#d29922}.lv-low{fill:#f85149}}
+.t{fill:#1f2328;font:15px system-ui,-apple-system,"Segoe UI",sans-serif}.mut{stroke:#59636e}
+.lv-high{fill:#70f8a8}.lv-mid{fill:#f8e038}.lv-low{fill:#f85838}
+@media (prefers-color-scheme:dark){.bg{fill:#0d1117;stroke:#3d444d}.hd,.t{fill:#f0f6fc}.mut{stroke:#9198a1}}
 </style>
 <rect class="bg" x=".5" y=".5" width="${W - 1}" height="${h - 1}" rx="12"/>
-${battery(level, 25, top + 1)}<text x="62" y="${top + 24}" class="hd">${esc(heading)}</text>
+<text x="25" y="${top + 24}" class="hd">${esc(heading)}</text>${hpBar(level, 25, top + 34)}
 ${body}
 ${scene ? figure(scene, level, W - 120, (h - 96) / 2) : ''}
 </svg>
@@ -323,7 +324,8 @@ if (process.argv[2] === 'test') {
   for (const sc of ['run', 'walk', 'hoops', 'idle', 'rest']) assert.match(card({ ...s, scene: sc }), /class="fr fr0"/);
 
   assert.match(card({ level: 'low', heading: 'a <b> & "c"', rows: [] }), /a &lt;b&gt; &amp; &quot;c&quot;/);
-  assert.equal((card(summarize({ recovery: 50, sleep: null, workouts: [], now })).match(/class="lv-mid"/g) ?? []).length, 2);
+  assert.match(card(summarize({ recovery: 50, sleep: null, workouts: [], now })), /width="48" height="6" class="lv-mid"/);
+  assert.doesNotMatch(card({ level: 'unknown', heading: 'x', rows: [] }), /class="lv-unknown"/);
   console.log('ok');
 } else {
   await main();
