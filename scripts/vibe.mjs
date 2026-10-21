@@ -21,7 +21,7 @@ export function summarize({ recovery, sleep, workouts, repo, now = Date.now() })
   rows.push(thisWeek.length >= 3 ? { icon: 'pulse', text: 'On a roll this week', alt: `${sport}, on a roll` }
     : thisWeek.length >= 1 ? { icon: 'pulse', text: 'Moving this week', alt: `${sport} this week` }
     : { icon: 'pulse', text: 'Rest week' });
-  const scene = !top ? 'rest' : /run|jog|track/.test(top) ? 'run' : /walk|hik/.test(top) ? 'walk' : /cycl|bik|spin/.test(top) ? 'cycle'
+  const scene = !top ? 'rest' : /basketball/.test(top) ? 'hoops' : /run|jog|track/.test(top) ? 'run' : /walk|hik/.test(top) ? 'walk' : /cycl|bik|spin/.test(top) ? 'cycle'
     : /swim/.test(top) ? 'swim' : /lift|strength|fitness|crossfit|power|weight/.test(top) ? 'lift' : 'jacks';
 
   // Rolling 7-day windows back from now; the streak ends at the first window without a workout.
@@ -121,6 +121,18 @@ const POSES = {
       { cls: 'acc', d: wave(56, 0) }, { cls: 'acc thin', d: wave(66, 1.5) },
     ];
   }],
+  hoops: [0.8, (t) => {
+    const q = t < 0.5 ? 2 * t : 2 - 2 * t, ball = [62, 56 + 24 * q * q]; // falls into the floor, back up into the hand
+    const b = 1.5 * Math.cos(TAU * t), hip = [42, 55 + b], sh = [46, 33 + b], hand = [62, Math.min(ball[1] - 6, 60)];
+    return [
+      { cls: 'mut', d: limb(sh, [36, 56 + b], 11, 11, 1) },
+      { cls: 'ink', d: line(hip, sh) }, { cls: 'ink', d: ring(49, 24 + b, 6) },
+      { cls: 'ink', d: limb(hip, [33, 82], 15, 15, -1) + limb(hip, [52, 82], 15, 15, -1) },
+      { cls: 'ink', d: limb(sh, hand, 12, 12, 1) },
+      { cls: 'ball', d: ring(ball[0], ball[1], 5) + line([ball[0] - 5, ball[1]], [ball[0] + 5, ball[1]]) + line([ball[0], ball[1] - 5], [ball[0], ball[1] + 5]) },
+      { cls: 'mut', d: 'M6 85H90' },
+    ];
+  }],
   jacks: [0.9, (t) => {
     const s = (1 - Math.cos(TAU * t)) / 2, y = -3 * Math.sin(Math.PI * s);
     const hip = [48, 55 + y], sh = [48, 32 + y], a = 0.3 + 2.4 * s;
@@ -164,10 +176,10 @@ export function card(summary) {
 <style>
 .bg{fill:#ffffff;stroke:#d1d9e0}.hd{fill:#1f2328;font:600 21px system-ui,-apple-system,"Segoe UI",sans-serif;letter-spacing:-.01em}
 .t{fill:#1f2328;font:15px system-ui,-apple-system,"Segoe UI",sans-serif}.mut{stroke:#59636e}.ink{stroke:#1f2328;fill:none}.seg{fill:#d1d9e0}
-.lv-high{fill:#1a7f37}.lv-mid{fill:#9a6700}.lv-low{fill:#cf222e}.acc{stroke:#0969da}.thin{stroke-width:2}.plate{stroke-width:6}
+.lv-high{fill:#1a7f37}.lv-mid{fill:#9a6700}.lv-low{fill:#cf222e}.acc{stroke:#0969da}.ball{stroke:#bc4c00;stroke-width:2.5}.thin{stroke-width:2}.plate{stroke-width:6}
 .dash{stroke-dasharray:10 8;animation:mv .4s linear infinite}@keyframes mv{to{stroke-dashoffset:18}}
 @media (prefers-color-scheme:dark){.bg{fill:#0d1117;stroke:#3d444d}.hd,.t{fill:#f0f6fc}.mut{stroke:#9198a1}.ink{stroke:#f0f6fc}.seg{fill:#3d444d}
-.lv-high{fill:#3fb950}.lv-mid{fill:#d29922}.lv-low{fill:#f85149}.acc{stroke:#4493f8}}
+.lv-high{fill:#3fb950}.lv-mid{fill:#d29922}.lv-low{fill:#f85149}.acc{stroke:#4493f8}.ball{stroke:#f0883e}}
 </style>
 <rect class="bg" x=".5" y=".5" width="${W - 1}" height="${h - 1}" rx="12"/>
 ${battery(level, 25, top + 1)}<text x="62" y="${top + 24}" class="hd">${esc(heading)}</text>
@@ -266,6 +278,7 @@ if (process.argv[2] === 'test') {
   assert.equal(summarize({ recovery: 50, sleep: null, workouts: [ago(1, 'cycling')], now }).rows[0].text, 'Moving this week');
   assert.equal(summarize({ recovery: 50, sleep: null, workouts: [], now }).scene, 'rest');
   assert.equal(summarize({ recovery: 50, sleep: null, workouts: [ago(1, 'yoga')], now }).scene, 'jacks');
+  assert.equal(summarize({ recovery: 50, sleep: null, workouts: [ago(1, 'basketball')], now }).scene, 'hoops');
   assert.match(card(s), /<animate attributeName="d"/);
 
   assert.match(card({ level: 'low', heading: 'a <b> & "c"', rows: [] }), /a &lt;b&gt; &amp; &quot;c&quot;/);
