@@ -363,10 +363,11 @@ async function main() {
   });
   const svg = card(summary);
   writeFileSync('vibe.svg', svg);
-  // Content hash in the URL so GitHub's image cache can't serve a stale card.
+  // Content hash in the URL so GitHub's image cache can't serve a stale card. The URL is absolute because on the
+  // profile page a relative src redirects to raw.githubusercontent.com and drops the query.
   const v = createHash('sha256').update(svg).digest('hex').slice(0, 8);
   const readme = readFileSync('README.md', 'utf8');
-  const img = `<img src="vibe.svg?v=${v}" alt="${esc(altText(summary))}">`;
+  const img = `<img src="https://raw.githubusercontent.com/${USER}/${USER}/main/vibe.svg?v=${v}" alt="${esc(altText(summary))}">`;
   writeFileSync('README.md', readme.replace(/(<!-- VIBE:START -->)[\s\S]*?(<!-- VIBE:END -->)/, `$1\n${img}\n$2`));
   console.log(altText(summary));
 }
