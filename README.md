@@ -8,5 +8,5 @@ A lot of what I build is small, practical tooling for my local carnival club: ev
 
 **Today's vibe** (powered by my WHOOP):
 <!-- VIBE:START -->
-<img src="vibe.svg?v=94fe0a44" alt="Cruising · Decent night · Cycling, on a roll · 12+ weeks active in a row · Tinkering with biwak">
+<img src="vibe.svg?v=7711a7c3" alt="Cruising · Decent night · Cycling, on a roll · 12+ weeks active in a row · Tinkering with flysystem-onedrive">
 <!-- VIBE:END -->
