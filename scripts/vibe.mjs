@@ -21,7 +21,8 @@ export function summarize({ recovery, sleep, workouts, repo, now = Date.now() })
   rows.push(thisWeek.length >= 3 ? { icon: 'pulse', text: 'On a roll this week', alt: `${sport}, on a roll` }
     : thisWeek.length >= 1 ? { icon: 'pulse', text: 'Moving this week', alt: `${sport} this week` }
     : { icon: 'pulse', text: 'Rest week' });
-  const scene = !top ? 'rest' : /basketball/.test(top) ? 'hoops' : /run|jog|track/.test(top) ? 'run' : /walk|hik/.test(top) ? 'walk' : 'idle';
+  const scene = !top ? 'rest' : /basketball/.test(top) ? 'hoops' : /run|jog|track/.test(top) ? 'run' : /walk|hik/.test(top) ? 'walk'
+    : /cycl|bik|spin/.test(top) ? 'cycle' : /badminton/.test(top) ? 'badminton' : /lift|strength|weight|power|crossfit|fitness/.test(top) ? 'lift' : 'idle';
 
   // Rolling 7-day windows back from now; the streak ends at the first window without a workout.
   let streak = 0;
@@ -58,10 +59,12 @@ function hpBar(level, x, y) {
 // Pixel-art sprite of me in a GBA overworld style, 18x24 cells of 4px. Fills are drawn first, then every empty
 // cell touching a fill becomes the dark outline; limbs in front of the body get a second outline pass.
 // R/r/d hair base/highlight/shadow, H/h skin/shade, E eyes, J/j/k jersey base/shadow/highlight,
-// W white, F shoes, G shoe stripe (recovery level colour), B/b/c ball base/seam/highlight.
+// W white, F shoes, G shoe stripe (recovery level colour), B/b/c ball base/seam/highlight, D dark steel, T/S/s tyre/rim/spoke,
+// K/X bike and racket red/shade, Q/q/w quilt base/shadow/highlight.
 const GW = 18, GH = 24, PX = 4;
 const PALETTE = { o: '#283040', R: '#b06a38', r: '#e09a60', d: '#7a4424', H: '#f8d0a8', h: '#d89c70', E: '#283040',
-  J: '#2c64d0', j: '#1c3f94', k: '#6094f0', W: '#f8f8f8', F: '#e8dcc0', B: '#f08030', b: '#a04010', c: '#f8c070' };
+  J: '#2c64d0', j: '#1c3f94', k: '#6094f0', W: '#f8f8f8', F: '#e8dcc0', B: '#f08030', b: '#a04010', c: '#f8c070',
+  D: '#485060', T: '#404858', S: '#c8d0d8', s: '#8890a0', K: '#e04040', X: '#a02830', Q: '#f8b830', q: '#c88010', w: '#f8e070' };
 
 function sprite(draw, overlay = () => {}) {
   const g = Array.from({ length: GH }, () => Array(GW).fill('.'));
@@ -87,7 +90,8 @@ function sprite(draw, overlay = () => {}) {
 const limb = (pts, bob = 0) => (set) => pts.forEach(([x, y, c = 'H']) => set(x + 1, y + bob, c));
 
 // Facing the viewer: tousled hair, grin, blue #4 club tank top, shorts, white socks.
-function front(set, row, { bob = 0, asleep = false } = {}) {
+// arms: true for both, 'left' to leave the right arm to an overlay, false for none.
+function front(set, row, { bob = 0, asleep = false, arms = true } = {}) {
   const S = (x, y, c) => set(x + 1, y + bob, c), R = (y, a, b, c) => row(y + bob, a + 1, b + 1, c);
   S(6, 0, 'R'); S(9, 0, 'R'); S(11, 1, 'R');
   R(1, 4, 10, 'R'); S(6, 1, 'r'); S(7, 1, 'r');
@@ -106,16 +110,15 @@ function front(set, row, { bob = 0, asleep = false } = {}) {
   R(12, 7, 8, 'h');
   for (const [x, y] of [[5, 13], [7, 13], [5, 14], [7, 14], [5, 15], [6, 15], [7, 15], [7, 16]]) S(x, y, 'W'); // 4
   S(10, 13, 'W'); // club badge
-  R(11, 2, 3, 'H'); R(12, 2, 3, 'H'); S(2, 13, 'H'); S(2, 14, 'h'); S(2, 15, 'H'); S(3, 12, 'h');
-  R(11, 12, 13, 'H'); R(12, 12, 13, 'H'); S(12, 12, 'h');
+  if (arms) { R(11, 2, 3, 'H'); R(12, 2, 3, 'H'); S(2, 13, 'H'); S(2, 14, 'h'); S(2, 15, 'H'); S(3, 12, 'h'); }
+  if (arms === true) { R(11, 12, 13, 'H'); R(12, 12, 13, 'H'); S(12, 12, 'h'); }
   R(17, 4, 11, 'j'); R(18, 4, 6, 'J'); R(18, 9, 11, 'J'); S(11, 18, 'j');
   R(19, 5, 6, 'H'); R(19, 9, 10, 'H'); R(20, 5, 6, 'h'); R(20, 9, 10, 'h'); R(21, 5, 6, 'W'); R(21, 9, 10, 'W');
   R(22, 4, 6, 'F'); R(22, 9, 11, 'F'); S(4, 22, 'G'); S(11, 22, 'G');
 }
 
-// Side view facing right, for running and walking.
-function side(set, row, { legs, bob = 0 }) {
-  const S = (x, y, c) => set(x + 1, y + bob, c), R = (y, a, b, c) => row(y + bob, a + 1, b + 1, c);
+// Side view facing right: head, then the standing torso and legs for running and walking.
+function sideHead(S, R) {
   S(6, 0, 'R'); S(9, 0, 'R'); S(3, 1, 'R');
   R(1, 4, 10, 'R'); S(7, 1, 'r');
   R(2, 2, 11, 'R'); S(6, 2, 'r'); S(7, 2, 'r'); S(8, 2, 'r');
@@ -127,6 +130,10 @@ function side(set, row, { legs, bob = 0 }) {
   R(8, 4, 13, 'H'); S(4, 8, 'd');
   R(9, 5, 12, 'H'); S(12, 9, 'h');
   R(10, 6, 11, 'h');
+}
+function side(set, row, { legs, bob = 0 }) {
+  const S = (x, y, c) => set(x + 1, y + bob, c), R = (y, a, b, c) => row(y + bob, a + 1, b + 1, c);
+  sideHead(S, R);
   for (let y = 11; y <= 16; y++) { R(y, 5, 10, 'J'); S(5, y, 'j'); S(10, y, 'k'); }
   R(11, 8, 9, 'h');
   R(17, 5, 10, 'j'); R(18, 5, 10, 'J'); S(5, 18, 'j');
@@ -145,7 +152,32 @@ const SIDE_ARM = {
 };
 const RIGHT_ARM_DOWN = [[13, 13], [13, 14], [13, 15, 'h']];
 const BALL = ['.cB.', 'cBbB', 'BbBB', '.BB.'];
-const Z = ['WWW', '.W.', 'WWW']; // a tiny "z"
+const Z = ['WWWW', '..W.', '.W..', 'WWWW'];
+const stamp = (s, art, x, y) => art.forEach((line, j) => [...line].forEach((c, i) => c !== '.' && s(x + i, y + j, c)));
+
+// Bike wheel of radius 3 around (cx, cy); the spokes alternate between + and x so the wheel turns.
+function wheel(S, cx, cy, k) {
+  const rim = ['..TTT..', '.TSSST.', 'TSSSSST', 'TSSDSST', 'TSSSSST', '.TSSST.', '..TTT..'];
+  rim.forEach((line, j) => [...line].forEach((c, i) => c !== '.' && S(cx - 3 + i, cy - 3 + j, c)));
+  for (const [dx, dy] of k % 2 ? [[-1, -1], [1, -1], [-1, 1], [1, 1]] : [[0, -2], [0, 2], [-2, 0], [2, 0]]) S(cx + dx, cy + dy, 's');
+}
+// Riding a red bike side-on like the Gen 3 Mach Bike; k is the pedal phase, a quarter turn per frame.
+function cyclist(set, row, k) {
+  const S = (x, y, c) => set(x + 1, y, c), R = (y, a, b, c) => row(y, a + 1, b + 1, c);
+  wheel(S, 2, 20, k); wheel(S, 13, 20, k);
+  R(17, 6, 12, 'K'); R(18, 6, 11, 'X'); S(12, 18, 'K'); S(13, 19, 'K'); S(6, 19, 'X'); R(20, 3, 6, 'X');
+  R(16, 4, 6, 'D'); S(12, 15, 'D'); S(12, 14, 'D'); S(13, 14, 'D'); S(7, 20, 'D');
+  sideHead(S, R);
+  for (let y = 11; y <= 14; y++) { R(y, 5, 10, 'J'); S(5, y, 'j'); S(10, y, 'k'); }
+  R(11, 8, 9, 'h'); R(15, 4, 10, 'J'); S(4, 15, 'j');
+  for (const [x, y, c] of PEDAL[k]) S(x, y, c); // the near leg, drawn with the bike so it shares one outline
+}
+const PEDAL = [
+  [[11, 15, 'J'], [11, 16, 'H'], [12, 16, 'H'], [11, 17, 'H'], [12, 17, 'h'], [11, 18, 'h'], [11, 19, 'W'], [10, 20, 'F'], [11, 20, 'F'], [12, 20, 'G']],
+  [[11, 15, 'J'], [11, 16, 'H'], [12, 16, 'h'], [10, 17, 'H'], [11, 17, 'h'], [10, 18, 'h'], [9, 19, 'W'], [10, 19, 'W'], [8, 20, 'F'], [9, 20, 'F'], [10, 20, 'G']],
+  [[10, 15, 'J'], [10, 16, 'H'], [11, 16, 'h'], [9, 17, 'H'], [10, 17, 'h'], [8, 18, 'H'], [9, 18, 'h'], [7, 19, 'W'], [5, 20, 'F'], [6, 20, 'F'], [7, 20, 'G']],
+  [[11, 14, 'J'], [11, 15, 'H'], [12, 15, 'h'], [10, 16, 'H'], [11, 16, 'h'], [9, 17, 'H'], [10, 17, 'h'], [8, 17, 'W'], [7, 18, 'F'], [8, 18, 'F'], [9, 18, 'G']],
+];
 
 const stride = [
   sprite((s, r) => side(s, r, { legs: SIDE_LEGS.stride }), limb(SIDE_ARM.back)),
@@ -161,11 +193,50 @@ const SCENES = {
     front(s, r);
     BALL.forEach((line, j) => [...line].forEach((c, i) => c !== '.' && s(14 + i, by + 1 + j, c)));
   }, limb([[13, 13], [14, 13], [14, 14], [15, 14, 'h']]))), 'court', false],
+  cycle: [0.6, [0, 1, 2, 3].map((k) => sprite((s, r) => cyclist(s, r, k),
+    limb([[9, 12], [10, 13], [11, 13], [12, 13, 'h']]))), 'grass', true],
+  // Back squat: bar across the shoulders, sinking two cells with the knees out.
+  lift: [1.6, [0, 1, 2, 1].map((d) => sprite((s, r) => {
+    front(s, r, { bob: d, arms: false });
+    if (d) { // bent legs replace the straight ones below the shorts
+      for (let y = 18 + d; y <= 23; y++) r(y, 0, 17, '.');
+      const knee = d === 2 ? 1 : 0;
+      for (const x of [4 - knee, 10 + knee]) { r(19 + d, x + 1, x + 2, 'H'); r(20 + d, x + 1, x + 2, 'h'); }
+      if (d < 2) { r(21 + d, 5, 6, 'W'); r(21 + d, 10, 11, 'W'); }
+      r(22, 4, 6, 'F'); r(22, 10, 12, 'F'); s(4, 22, 'G'); s(12, 22, 'G');
+    }
+  }, (s) => {
+    const y = 10 + d;
+    for (let x = 0; x <= 17; x++) s(x, y, 'S');
+    for (const x of [0, 1, 16, 17]) for (let j = -2; j <= 2; j++) s(x, y + j, 'D');
+    limb([[2, y + 1], [2, y, 'h'], [12, y + 1], [12, y, 'h']])(s);
+  })), 'court', false],
+  // Overhead smash: the shuttle drops in from the left, the racket comes over, then follows through low.
+  badminton: [1.2, [[1, 7, 'back'], [7, 0, 'up'], [11, 0, 'hit'], [2, 1, 'through']].map(([sx, sy, pose]) => sprite((s, r) => front(s, r, { arms: 'left' }), (s) => {
+    const RACKET = ['.KK.', 'KsSK', 'KSsK', 'KsSK', '.KK.'];
+    if (pose === 'through') {
+      limb(RIGHT_ARM_DOWN)(s); s(14, 16, 'D'); s(14, 17, 'D'); stamp(s, RACKET, 13, 18);
+    } else {
+      limb({ back: [[13, 11], [14, 10], [15, 9, 'h']], up: [[13, 11], [13, 10], [14, 9, 'h']], hit: [[13, 11], [13, 10], [13, 9, 'h']] }[pose])(s);
+      const [hx, hy] = { back: [16, 8], up: [15, 8], hit: [14, 8] }[pose]; // handle just above the hand
+      s(hx, hy - 1, 'D'); stamp(s, RACKET, hx - 1 - (pose === 'hit'), hy - 7);
+    }
+    stamp(s, ['W.W', '.c.'], sx, sy);
+  })), 'court', false],
   idle: [0.9, [0, -1].map((bob) => sprite((s, r) => front(s, r, { bob }), limb(RIGHT_ARM_DOWN, bob))), 'grass', false],
-  rest: [2.4, [0, 1, 2, 3].map((k) => sprite((s, r) => front(s, r, { asleep: true, bob: k % 2 ? -1 : 0 }), (s) => {
-    limb(RIGHT_ARM_DOWN, k % 2 ? -1 : 0)(s);
-    Z.forEach((line, j) => [...line].forEach((c, i) => c !== '.' && s(15 + i, 3 - k + j, c)));
-  })), 'grass', false],
+  // Asleep in bed, seen from above like the Gen 3 bedrooms; the quilt swells on each breath and a z floats up.
+  rest: [2.4, [0, 1, 2, 3].map((k) => sprite((s, r) => {
+    for (let y = 5; y <= 11; y++) r(y, 0, 17, y === 11 ? 'F' : 'W');
+    front(s, r, { asleep: true, bob: 3 });
+    const swell = k % 2;
+    r(13, 1, 16, 'W'); r(14, 1, 16, 'F');
+    for (let y = 15; y <= 22; y++) {
+      r(y, 1 - (swell && y >= 16 && y <= 18), 16 + (swell && y >= 16 && y <= 18), 'Q');
+      for (let x = 2; x <= 15; x++) if (((x >> 1) + (y >> 1)) % 2) s(x, y, 'w');
+      s(16, y, 'q');
+    }
+    r(22, 1, 16, 'q');
+  }, (s) => stamp(s, Z, 13, 3 - k))), 'court', false],
 };
 
 // Backdrops are SVG patterns of 4px cells: route grass, or a wooden gym floor.
@@ -315,13 +386,15 @@ if (process.argv[2] === 'test') {
   s = summarize({ recovery: null, sleep: 50, workouts: Array.from({ length: 13 }, (_, i) => ago(i * 7 + 1, 'functional-fitness')), now });
   assert.equal(altText(s), 'Signal lost · Running on coffee · Functional fitness this week · 12+ weeks active in a row');
 
-  assert.equal(s.scene, 'idle');
+  assert.equal(s.scene, 'lift');
   assert.equal(summarize({ recovery: 50, sleep: null, workouts: [ago(1, 'cycling')], now }).rows[0].text, 'Moving this week');
   assert.equal(summarize({ recovery: 50, sleep: null, workouts: [], now }).scene, 'rest');
   assert.equal(summarize({ recovery: 50, sleep: null, workouts: [ago(1, 'yoga')], now }).scene, 'idle');
   assert.equal(summarize({ recovery: 50, sleep: null, workouts: [ago(1, 'basketball')], now }).scene, 'hoops');
   assert.equal(summarize({ recovery: 50, sleep: null, workouts: [ago(1, 'running')], now }).scene, 'run');
-  for (const sc of ['run', 'walk', 'hoops', 'idle', 'rest']) assert.match(card({ ...s, scene: sc }), /class="fr fr0"/);
+  assert.equal(summarize({ recovery: 50, sleep: null, workouts: [ago(1, 'badminton')], now }).scene, 'badminton');
+  assert.equal(summarize({ recovery: 50, sleep: null, workouts: [ago(1, 'cycling')], now }).scene, 'cycle');
+  for (const sc of ['run', 'walk', 'hoops', 'idle', 'rest', 'cycle', 'lift', 'badminton']) assert.match(card({ ...s, scene: sc }), /class="fr fr0"/);
 
   assert.match(card({ level: 'low', heading: 'a <b> & "c"', rows: [] }), /a &lt;b&gt; &amp; &quot;c&quot;/);
   assert.match(card(summarize({ recovery: 50, sleep: null, workouts: [], now })), /width="48" height="6" class="lv-mid"/);
