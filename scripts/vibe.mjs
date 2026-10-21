@@ -21,8 +21,7 @@ export function summarize({ recovery, sleep, workouts, repo, now = Date.now() })
   rows.push(thisWeek.length >= 3 ? { icon: 'pulse', text: 'On a roll this week', alt: `${sport}, on a roll` }
     : thisWeek.length >= 1 ? { icon: 'pulse', text: 'Moving this week', alt: `${sport} this week` }
     : { icon: 'pulse', text: 'Rest week' });
-  const scene = !top ? 'rest' : /basketball/.test(top) ? 'hoops' : /run|jog|track/.test(top) ? 'run' : /walk|hik/.test(top) ? 'walk' : /cycl|bik|spin/.test(top) ? 'cycle'
-    : /swim/.test(top) ? 'swim' : /lift|strength|fitness|crossfit|power|weight/.test(top) ? 'lift' : 'jacks';
+  const scene = !top ? 'rest' : /basketball/.test(top) ? 'hoops' : /run|jog|track/.test(top) ? 'run' : /walk|hik/.test(top) ? 'walk' : 'idle';
 
   // Rolling 7-day windows back from now; the streak ends at the first window without a workout.
   let streak = 0;
@@ -53,121 +52,163 @@ function battery(level, x, y) {
   return `<g transform="translate(${x} ${y}) scale(1.4)"><rect x="1.8" y="5.8" width="14.4" height="8.4" rx="2.2" fill="none" stroke-width="1.4" class="ink"/><path d="M18 8.6v2.8" stroke-width="1.6" stroke-linecap="round" class="ink"/>${segs}</g>`;
 }
 
-// Animated stick figures in a 96px box. Each pose function maps a loop phase t in [0, 1) to the same list of
-// strokes; sampling it gives SMIL keyframes for each stroke's path, which animate even inside an <img>.
-const f1 = (n) => +n.toFixed(1);
-const line = (...pts) => 'M' + pts.map((p) => `${f1(p[0])} ${f1(p[1])}`).join('L');
-const ring = (x, y, r) => `M${f1(x - r)} ${f1(y)}a${r} ${r} 0 1 0 ${2 * r} 0a${r} ${r} 0 1 0 ${-2 * r} 0`;
-const add = (p, len, a) => [p[0] + len * Math.sin(a), p[1] + len * Math.cos(a)]; // a = angle from straight down, + is forward
-const TAU = 2 * Math.PI;
+// Pixel-art sprite of me in a GBA overworld style, 18x24 cells of 4px. Fills are drawn first, then every empty
+// cell touching a fill becomes the dark outline; limbs in front of the body get a second outline pass.
+// R/r/d hair base/highlight/shadow, H/h skin/shade, E eyes, M smile, J/j/k jersey base/shadow/highlight,
+// W white, F shoes, G shoe stripe (recovery level colour), B/b/c ball base/seam/highlight.
+const GW = 18, GH = 24, PX = 4;
+const PALETTE = { o: '#283040', R: '#b06a38', r: '#e09a60', d: '#7a4424', H: '#f8d0a8', h: '#d89c70', E: '#283040', M: '#a04838',
+  J: '#2c64d0', j: '#1c3f94', k: '#6094f0', W: '#f8f8f8', F: '#e8dcc0', B: '#f08030', b: '#a04010', c: '#f8c070' };
 
-// Two-segment limb from a to b; bend 1 puts the joint on the right of the a→b direction, -1 on the left.
-function limb(a, b, l1, l2, bend) {
-  const dx = b[0] - a[0], dy = b[1] - a[1], d = Math.hypot(dx, dy), r = Math.min(d, l1 + l2 - 0.01);
-  const along = (l1 * l1 - l2 * l2 + r * r) / (2 * r), off = Math.sqrt(Math.max(0, l1 * l1 - along * along));
-  const ux = dx / d, uy = dy / d;
-  return line(a, [a[0] + ux * along - bend * uy * off, a[1] + uy * along + bend * ux * off], b);
+function sprite(draw, overlay = () => {}) {
+  const g = Array.from({ length: GH }, () => Array(GW).fill('.'));
+  const outline = (inside, onto) => {
+    const out = g.map((r) => [...r]);
+    for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++)
+      if (onto(x, y) && [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => inside(x + dx, y + dy))) out[y][x] = 'o';
+    out.forEach((r, y) => { g[y] = r; });
+  };
+  const pen = (grid) => {
+    const set = (x, y, c) => { if (grid[y] && x >= 0 && x < GW) grid[y][x] = c; };
+    return [set, (y, x0, x1, c) => { for (let x = x0; x <= x1; x++) set(x, y, c); }];
+  };
+  draw(...pen(g));
+  outline((x, y) => (g[y]?.[x] ?? '.') !== '.', (x, y) => g[y][x] === '.');
+  const top = Array.from({ length: GH }, () => Array(GW).fill('.'));
+  overlay(...pen(top));
+  const on = (x, y) => (top[y]?.[x] ?? '.') !== '.';
+  outline(on, (x, y) => !on(x, y));
+  top.forEach((r, y) => r.forEach((c, x) => { if (c !== '.') g[y][x] = c; }));
+  return g;
+}
+const limb = (pts, bob = 0) => (set) => pts.forEach(([x, y, c = 'H']) => set(x + 1, y + bob, c));
+
+// Facing the viewer: tousled hair, grin, blue #4 club tank top, shorts, white socks.
+function front(set, row, { bob = 0, asleep = false } = {}) {
+  const S = (x, y, c) => set(x + 1, y + bob, c), R = (y, a, b, c) => row(y + bob, a + 1, b + 1, c);
+  S(6, 0, 'R'); S(9, 0, 'R'); S(11, 1, 'R');
+  R(1, 4, 10, 'R'); S(6, 1, 'r'); S(7, 1, 'r');
+  R(2, 3, 12, 'R'); S(5, 2, 'r'); S(6, 2, 'r'); S(9, 2, 'r');
+  R(3, 2, 13, 'R'); S(4, 3, 'r'); S(12, 3, 'd'); S(13, 3, 'd');
+  R(4, 2, 13, 'R'); for (const x of [3, 7, 10, 13]) S(x, 4, 'd');
+  R(5, 3, 12, 'H'); for (const x of [2, 3, 4, 8, 12, 13]) S(x, 5, 'R'); S(9, 5, 'd');
+  R(6, 2, 13, 'H'); S(2, 6, 'd'); S(13, 6, 'd'); S(1, 6, 'h'); S(14, 6, 'h');
+  R(7, 2, 13, 'H'); S(1, 7, 'h'); S(14, 7, 'h');
+  if (asleep) { S(5, 7, 'E'); S(10, 7, 'E'); } else { S(5, 6, 'E'); S(5, 7, 'E'); S(10, 6, 'E'); S(10, 7, 'E'); }
+  R(8, 3, 12, 'H'); S(3, 8, 'h'); S(12, 8, 'h');
+  R(9, 4, 11, 'H');
+  if (asleep) R(9, 7, 8, 'M'); else { S(5, 8, 'M'); S(10, 8, 'M'); R(9, 6, 9, 'M'); }
+  R(10, 5, 10, 'h');
+  R(11, 4, 11, 'J'); R(11, 6, 9, 'h'); S(4, 11, 'k');
+  for (let y = 12; y <= 16; y++) { R(y, 4, 11, 'J'); S(4, y, 'k'); S(11, y, 'j'); }
+  R(12, 7, 8, 'h');
+  for (const [x, y] of [[5, 13], [7, 13], [5, 14], [7, 14], [5, 15], [6, 15], [7, 15], [7, 16]]) S(x, y, 'W'); // 4
+  S(10, 13, 'W'); // club badge
+  R(11, 2, 3, 'H'); R(12, 2, 3, 'H'); S(2, 13, 'H'); S(2, 14, 'h'); S(2, 15, 'H'); S(3, 12, 'h');
+  R(11, 12, 13, 'H'); R(12, 12, 13, 'H'); S(12, 12, 'h');
+  R(17, 4, 11, 'j'); R(18, 4, 6, 'J'); R(18, 9, 11, 'J'); S(11, 18, 'j');
+  R(19, 5, 6, 'H'); R(19, 9, 10, 'H'); R(20, 5, 6, 'h'); R(20, 9, 10, 'h'); R(21, 5, 6, 'W'); R(21, 9, 10, 'W');
+  R(22, 4, 6, 'F'); R(22, 9, 11, 'F'); S(4, 22, 'G'); S(11, 22, 'G');
 }
 
-function stride(t, { reach, lift, lean, arm, bob }) {
-  const b = bob * Math.cos(2 * TAU * t);
-  const hip = [46, 52 + b], sh = [46 + lean, 30 + b];
-  const leg = (p) => limb(hip, [46 + reach * Math.sin(p), 81 - lift * Math.max(0, Math.cos(p))], 16, 16, -1);
-  const hand = (p) => { const a = arm * Math.sin(p), e = add(sh, 11, a); return line(sh, e, add(e, 10, a + 1.5)); };
-  const p = TAU * t;
-  return [
-    { cls: 'mut', d: leg(p + Math.PI) }, { cls: 'mut', d: hand(p) },
-    { cls: 'ink', d: line(hip, sh) }, { cls: 'ink', d: ring(sh[0] + lean / 3, sh[1] - 10, 6) },
-    { cls: 'ink', d: leg(p) }, { cls: 'ink', d: hand(p + Math.PI) },
-  ];
+// Side view facing right, for running and walking.
+function side(set, row, { legs, bob = 0 }) {
+  const S = (x, y, c) => set(x + 1, y + bob, c), R = (y, a, b, c) => row(y + bob, a + 1, b + 1, c);
+  S(6, 0, 'R'); S(9, 0, 'R'); S(3, 1, 'R');
+  R(1, 4, 10, 'R'); S(7, 1, 'r');
+  R(2, 2, 11, 'R'); S(6, 2, 'r'); S(7, 2, 'r'); S(8, 2, 'r');
+  R(3, 2, 12, 'R'); S(5, 3, 'r'); S(3, 3, 'd');
+  R(4, 2, 12, 'R'); S(3, 4, 'd'); S(7, 4, 'd'); S(10, 4, 'd');
+  R(5, 3, 12, 'R'); R(5, 8, 11, 'H'); S(12, 5, 'R');
+  R(6, 3, 12, 'H'); R(6, 3, 6, 'R'); S(4, 6, 'd');
+  R(7, 4, 13, 'H'); S(4, 7, 'R'); S(5, 7, 'd'); S(7, 7, 'h'); S(7, 6, 'h'); S(11, 6, 'E'); S(11, 7, 'E');
+  R(8, 4, 13, 'H'); S(4, 8, 'd'); S(12, 8, 'M');
+  R(9, 5, 12, 'H'); S(11, 9, 'M'); S(12, 9, 'h');
+  R(10, 6, 11, 'h');
+  for (let y = 11; y <= 16; y++) { R(y, 5, 10, 'J'); S(5, y, 'j'); S(10, y, 'k'); }
+  R(11, 8, 9, 'h');
+  R(17, 5, 10, 'j'); R(18, 5, 10, 'J'); S(5, 18, 'j');
+  for (const [x, y, c] of legs) S(x, y, c);
 }
+const SIDE_LEGS = {
+  stride: [[9, 19, 'H'], [10, 19, 'H'], [10, 20, 'H'], [11, 20, 'h'], [11, 21, 'W'], [12, 21, 'W'], [11, 22, 'F'], [12, 22, 'F'], [13, 22, 'G'],
+    [6, 19, 'H'], [5, 19, 'h'], [4, 20, 'H'], [3, 20, 'h'], [2, 21, 'W'], [3, 21, 'W'], [0, 22, 'F'], [1, 22, 'G'], [2, 22, 'F']],
+  pass: [[7, 19, 'H'], [8, 19, 'H'], [7, 20, 'h'], [8, 20, 'H'], [7, 21, 'W'], [8, 21, 'W'], [7, 22, 'F'], [8, 22, 'F'], [9, 22, 'G'],
+    [5, 19, 'H'], [4, 19, 'h'], [3, 19, 'W'], [2, 19, 'F'], [2, 18, 'F'], [3, 18, 'G']],
+};
+const SIDE_ARM = {
+  fwd: [[8, 12], [9, 12], [9, 13], [10, 13], [11, 13], [11, 12], [12, 12], [12, 11, 'h']],
+  back: [[7, 12], [7, 13], [6, 13], [6, 14], [5, 14], [5, 15], [4, 15], [3, 15, 'h']],
+  down: [[8, 12], [8, 13], [8, 14], [9, 15], [9, 16, 'h']],
+};
+const RIGHT_ARM_DOWN = [[13, 13], [13, 14], [13, 15, 'h']];
+const BALL = ['.cB.', 'cBbB', 'BbBB', '.BB.'];
+const Z = ['WWW', '.W.', 'WWW']; // a tiny "z"
 
-const POSES = {
-  run: [0.7, (t) => [...stride(t, { reach: 14, lift: 9, lean: 5, arm: 0.9, bob: 1.5 }), { cls: 'mut dash', d: 'M6 85H90' }]],
-  walk: [1.2, (t) => [...stride(t, { reach: 8, lift: 3, lean: 1, arm: 0.5, bob: 0.6 }), { cls: 'mut', d: 'M6 85H90' }]],
-  cycle: [0.9, (t) => {
-    const bb = [44, 70], hip = [36, 45], sh = [54, 31];
-    const pedal = (p) => [bb[0] + 7 * Math.cos(p), bb[1] + 7 * Math.sin(p)];
-    const spokes = (c) => { const a = TAU * t / 4; return line(add(c, 12, a), add(c, -12, a)) + line(add(c, 12, a + Math.PI / 2), add(c, -12, a + Math.PI / 2)); };
-    const p = TAU * t;
-    return [
-      { cls: 'mut', d: limb(hip, pedal(p + Math.PI), 17, 17, -1) },
-      { cls: 'mut', d: ring(22, 70, 14) + ring(72, 70, 14) }, { cls: 'mut thin', d: spokes([22, 70]) + spokes([72, 70]) },
-      { cls: 'mut', d: line([22, 70], bb, [38, 47], [22, 70]) + line(bb, [64, 48], [72, 70]) + line([38, 47], [64, 48], [62, 42], [68, 42]) },
-      { cls: 'ink', d: line(hip, sh) + line(sh, [58, 40], [65, 43]) }, { cls: 'ink', d: ring(59, 22, 6) },
-      { cls: 'ink', d: limb(hip, pedal(p), 17, 17, -1) + line(pedal(p + Math.PI), pedal(p)) },
-    ];
-  }],
-  lift: [2.4, (t) => {
-    const s = (1 - Math.cos(TAU * t)) / 2, by = 36 - 26 * s, dip = 5 * (1 - s); // bar from shoulders to overhead
-    const hip = [48, 56 + dip], sh = [48, 30 + dip / 3];
-    return [
-      { cls: 'ink', d: line(hip, sh) }, { cls: 'ink', d: ring(48, 21 + dip / 3, 6) },
-      { cls: 'ink', d: limb([hip[0] - 4, hip[1]], [36, 82], 14, 14, 1) + limb([hip[0] + 4, hip[1]], [60, 82], 14, 14, -1) },
-      { cls: 'ink', d: limb([sh[0] - 6, sh[1]], [35, by], 11, 11, 1) + limb([sh[0] + 6, sh[1]], [61, by], 11, 11, -1) },
-      { cls: 'mut', d: line([18, by], [78, by]) }, { cls: 'mut plate', d: line([22, by - 8], [22, by + 8]) + line([74, by - 8], [74, by + 8]) },
-      { cls: 'mut', d: 'M6 85H90' },
-    ];
-  }],
-  swim: [1.6, (t) => {
-    const p = TAU * t, sh = [62, 50], hip = [30, 51];
-    const arm = (q) => line(sh, add(sh, 18, Math.PI / 2 - q));
-    const kick = (q) => line(hip, add(hip, 16, -Math.PI / 2 + 0.25 * Math.sin(q)));
-    const wave = (y, o) => 'M4 ' + y + [...Array(11)].map((_, i) => `L${4 + i * 8.8} ${f1(y + 2.5 * Math.sin(i * 1.2 - p + o))}`).join('');
-    return [
-      { cls: 'mut', d: arm(p + Math.PI) }, { cls: 'mut', d: kick(4 * p + Math.PI) },
-      { cls: 'ink', d: line(hip, sh) }, { cls: 'ink', d: ring(71, 46, 6) },
-      { cls: 'ink', d: kick(4 * p) }, { cls: 'ink', d: arm(p) },
-      { cls: 'acc', d: wave(56, 0) }, { cls: 'acc thin', d: wave(66, 1.5) },
-    ];
-  }],
-  hoops: [0.8, (t) => {
-    const q = t < 0.5 ? 2 * t : 2 - 2 * t, ball = [62, 56 + 24 * q * q]; // falls into the floor, back up into the hand
-    const b = 1.5 * Math.cos(TAU * t), hip = [42, 55 + b], sh = [46, 33 + b], hand = [62, Math.min(ball[1] - 6, 60)];
-    return [
-      { cls: 'mut', d: limb(sh, [36, 56 + b], 11, 11, 1) },
-      { cls: 'ink', d: line(hip, sh) }, { cls: 'ink', d: ring(49, 24 + b, 6) },
-      { cls: 'ink', d: limb(hip, [33, 82], 15, 15, -1) + limb(hip, [52, 82], 15, 15, -1) },
-      { cls: 'ink', d: limb(sh, hand, 12, 12, 1) },
-      { cls: 'ball', d: ring(ball[0], ball[1], 5) + line([ball[0] - 5, ball[1]], [ball[0] + 5, ball[1]]) + line([ball[0], ball[1] - 5], [ball[0], ball[1] + 5]) },
-      { cls: 'mut', d: 'M6 85H90' },
-    ];
-  }],
-  jacks: [0.9, (t) => {
-    const s = (1 - Math.cos(TAU * t)) / 2, y = -3 * Math.sin(Math.PI * s);
-    const hip = [48, 55 + y], sh = [48, 32 + y], a = 0.3 + 2.4 * s;
-    return [
-      { cls: 'ink', d: line(hip, sh) }, { cls: 'ink', d: ring(48, 23 + y, 6) },
-      { cls: 'ink', d: line([42, 82 + y / 2 - 6 * s], hip, [54, 82 + y / 2 - 6 * s]) },
-      { cls: 'ink', d: line(add(sh, 20, -a), sh, add(sh, 20, a)) },
-      { cls: 'mut', d: 'M6 85H90' },
-    ];
-  }],
-  rest: [3, (t) => {
-    const z = (k) => { const q = (t + k / 3) % 1, x = 56 + 14 * q, y = 46 - 26 * q, r = 2 + 2 * q; return line([x, y], [x + r, y], [x, y + r], [x + r, y + r]); };
-    return [
-      { cls: 'ink', d: ring(22, 62, 6) }, { cls: 'ink', d: line([29, 64], [64, 64], [78, 68]) },
-      { cls: 'mut', d: line([12, 70], [12, 80]) + line([12, 70], [86, 70], [86, 80]) },
-      ...[0, 1, 2].map((k) => ({ cls: 'mut thin', d: z(k) })),
-    ];
-  }],
+const stride = [
+  sprite((s, r) => side(s, r, { legs: SIDE_LEGS.stride }), limb(SIDE_ARM.back)),
+  sprite((s, r) => side(s, r, { legs: SIDE_LEGS.pass, bob: -1 }), limb(SIDE_ARM.down, -1)),
+  sprite((s, r) => side(s, r, { legs: SIDE_LEGS.stride }), limb(SIDE_ARM.fwd)),
+  sprite((s, r) => side(s, r, { legs: SIDE_LEGS.pass, bob: -1 }), limb(SIDE_ARM.down, -1)),
+];
+// [loop seconds, frames, backdrop, whether the backdrop scrolls]
+const SCENES = {
+  run: [0.6, stride, 'grass', true],
+  walk: [1.1, stride, 'grass', true],
+  hoops: [0.8, [14, 16, 18, 16].map((by) => sprite((s, r) => {
+    front(s, r);
+    BALL.forEach((line, j) => [...line].forEach((c, i) => c !== '.' && s(14 + i, by + 1 + j, c)));
+  }, limb([[13, 13], [14, 13], [14, 14], [15, 14, 'h']]))), 'court', false],
+  idle: [0.9, [0, -1].map((bob) => sprite((s, r) => front(s, r, { bob }), limb(RIGHT_ARM_DOWN, bob))), 'grass', false],
+  rest: [2.4, [0, 1, 2, 3].map((k) => sprite((s, r) => front(s, r, { asleep: true, bob: k % 2 ? -1 : 0 }), (s) => {
+    limb(RIGHT_ARM_DOWN, k % 2 ? -1 : 0)(s);
+    Z.forEach((line, j) => [...line].forEach((c, i) => c !== '.' && s(15 + i, 3 - k + j, c)));
+  })), 'grass', false],
 };
 
-function figure(name, x, y) {
-  const [dur, pose] = POSES[name];
-  const frames = Array.from({ length: 16 }, (_, i) => pose(i / 16));
-  const paths = frames[0].map((s, k) => {
-    const ds = frames.map((f) => f[k].d);
-    const anim = ds.every((d) => d === ds[0]) ? '' : `<animate attributeName="d" dur="${dur}s" repeatCount="indefinite" values="${[...ds, ds[0]].join(';')}"/>`;
-    return `<path class="${s.cls}" d="${ds[0]}">${anim}</path>`;
+// Backdrops are SVG patterns of 4px cells: route grass, or a wooden gym floor.
+function backdrop(kind, x, y, w, h, dur, scroll) {
+  const cell = (cx, cy, c) => `<rect x="${cx * PX}" y="${cy * PX}" width="${PX}" height="${PX}" fill="${c}"/>`;
+  if (kind === 'court') {
+    const planks = [[0, 0, 16], [0, 3, 16]].map(([cx, cy, n]) => `<rect x="${cx}" y="${cy * PX}" width="${n * PX}" height="${PX}" fill="#c08048"/>`).join('')
+      + [[5, 1], [13, 2], [9, 4], [1, 5]].map(([cx, cy]) => cell(cx, cy, '#c08048')).join('');
+    return `<pattern id="bd" width="${16 * PX}" height="${6 * PX}" patternUnits="userSpaceOnUse" x="${x}" y="${y}"><rect width="${16 * PX}" height="${6 * PX}" fill="#e0a868"/>${planks}</pattern>
+<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="url(#bd)"/>`;
+  }
+  const tuft = [[1, 1, '#58a840'], [2, 0, '#58a840'], [3, 1, '#58a840'], [5, 4, '#58a840'], [6, 3, '#58a840'], [7, 4, '#58a840'], [2, 6, '#c8f0a0'], [6, 0, '#c8f0a0']];
+  const anim = scroll ? ` class="fx" style="animation:scroll ${dur}s steps(2,end) infinite"` : '';
+  // One tile wider than the panel so it can scroll left by a tile and loop.
+  return `<pattern id="bd" width="${8 * PX}" height="${8 * PX}" patternUnits="userSpaceOnUse" x="${x}" y="${y}"><rect width="${8 * PX}" height="${8 * PX}" fill="#90d070"/>${tuft.map(([cx, cy, c]) => cell(cx, cy, c)).join('')}</pattern>
+<g${anim}><rect x="${x}" y="${y}" width="${w + 8 * PX}" height="${h}" fill="url(#bd)"/></g>`;
+}
+
+// One frame visible at a time: frame k shows during [k/n, (k+1)/n) of each loop. Reduced motion keeps frame 0.
+function figure(name, level, x, y) {
+  const [dur, frames, kind, scroll] = SCENES[name];
+  const n = frames.length, w = 116, h = 108, px = x - 10, py = y - 6, ox = x + 12, oy = y + 2;
+  const body = frames.map((g, k) => {
+    // One rect per horizontal run of same-coloured cells keeps the file small.
+    const rects = g.flatMap((r, j) => r.map((c, i) => {
+      if (c === '.' || r[i - 1] === c) return '';
+      let n = 1;
+      while (r[i + n] === c) n++;
+      const paint = c === 'G' ? `class="shoe lv-${level}"` : `fill="${PALETTE[c]}"`;
+      return `<rect x="${ox + i * PX}" y="${oy + j * PX}" width="${n * PX}" height="${PX}" ${paint}/>`;
+    })).join('');
+    return `<g class="fr${k ? '' : ' fr0'}" style="animation:flip${n} ${dur}s steps(1,end) infinite;animation-delay:${(-(n - k) * dur / n).toFixed(3)}s">${rects}</g>`;
   }).join('');
-  return `<g transform="translate(${x} ${y})" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">${paths}</g>`;
+  return `<style>@keyframes flip${n}{0%{opacity:1}${+(100 / n).toFixed(2)}%{opacity:0}100%{opacity:0}}@keyframes scroll{to{transform:translateX(-${8 * PX}px)}}
+.fr{opacity:0}@media (prefers-reduced-motion:reduce){.fr,.fx{animation:none!important}.fr0{opacity:1}}</style>
+<clipPath id="panel"><rect x="${px}" y="${py}" width="${w}" height="${h}" rx="10"/></clipPath>
+<g clip-path="url(#panel)" shape-rendering="crispEdges">${backdrop(kind, px, py, w, h, dur, scroll)}
+<rect x="${ox + 4 * PX}" y="${oy + 22 * PX}" width="${10 * PX}" height="${2 * PX}" fill="#000" fill-opacity=".22"/>${body}</g>
+<rect x="${px}" y="${py}" width="${w}" height="${h}" rx="10" fill="none" stroke="#283040" stroke-width="2"/>`;
 }
 
 export function card(summary) {
   const { level, heading, rows, scene } = summary;
   const W = 480, top = 28, rowStart = 92, step = 30;
-  const h = Math.max(rowStart + (rows.length - 1) * step + 28, scene ? 120 : 0);
+  const h = Math.max(rowStart + (rows.length - 1) * step + 28, scene ? 124 : 0);
   const body = rows.map((r, i) => {
     const base = rowStart + i * step;
     return `${icon(r.icon, 29, base - 14.5, 18, 'mut')}<text x="62" y="${base}" class="t">${esc(r.text)}</text>`;
@@ -176,15 +217,14 @@ export function card(summary) {
 <style>
 .bg{fill:#ffffff;stroke:#d1d9e0}.hd{fill:#1f2328;font:600 21px system-ui,-apple-system,"Segoe UI",sans-serif;letter-spacing:-.01em}
 .t{fill:#1f2328;font:15px system-ui,-apple-system,"Segoe UI",sans-serif}.mut{stroke:#59636e}.ink{stroke:#1f2328;fill:none}.seg{fill:#d1d9e0}
-.lv-high{fill:#1a7f37}.lv-mid{fill:#9a6700}.lv-low{fill:#cf222e}.acc{stroke:#0969da}.ball{stroke:#bc4c00;stroke-width:2.5}.thin{stroke-width:2}.plate{stroke-width:6}
-.dash{stroke-dasharray:10 8;animation:mv .4s linear infinite}@keyframes mv{to{stroke-dashoffset:18}}
+.lv-high{fill:#1a7f37}.lv-mid{fill:#9a6700}.lv-low{fill:#cf222e}
 @media (prefers-color-scheme:dark){.bg{fill:#0d1117;stroke:#3d444d}.hd,.t{fill:#f0f6fc}.mut{stroke:#9198a1}.ink{stroke:#f0f6fc}.seg{fill:#3d444d}
-.lv-high{fill:#3fb950}.lv-mid{fill:#d29922}.lv-low{fill:#f85149}.acc{stroke:#4493f8}.ball{stroke:#f0883e}}
+.lv-high{fill:#3fb950}.lv-mid{fill:#d29922}.lv-low{fill:#f85149}}
 </style>
 <rect class="bg" x=".5" y=".5" width="${W - 1}" height="${h - 1}" rx="12"/>
 ${battery(level, 25, top + 1)}<text x="62" y="${top + 24}" class="hd">${esc(heading)}</text>
 ${body}
-${scene ? figure(scene, W - 120, (h - 96) / 2) : ''}
+${scene ? figure(scene, level, W - 120, (h - 96) / 2) : ''}
 </svg>
 `;
 }
@@ -274,12 +314,13 @@ if (process.argv[2] === 'test') {
   s = summarize({ recovery: null, sleep: 50, workouts: Array.from({ length: 13 }, (_, i) => ago(i * 7 + 1, 'functional-fitness')), now });
   assert.equal(altText(s), 'Signal lost · Running on coffee · Functional fitness this week · 12+ weeks active in a row');
 
-  assert.equal(s.scene, 'lift');
+  assert.equal(s.scene, 'idle');
   assert.equal(summarize({ recovery: 50, sleep: null, workouts: [ago(1, 'cycling')], now }).rows[0].text, 'Moving this week');
   assert.equal(summarize({ recovery: 50, sleep: null, workouts: [], now }).scene, 'rest');
-  assert.equal(summarize({ recovery: 50, sleep: null, workouts: [ago(1, 'yoga')], now }).scene, 'jacks');
+  assert.equal(summarize({ recovery: 50, sleep: null, workouts: [ago(1, 'yoga')], now }).scene, 'idle');
   assert.equal(summarize({ recovery: 50, sleep: null, workouts: [ago(1, 'basketball')], now }).scene, 'hoops');
-  assert.match(card(s), /<animate attributeName="d"/);
+  assert.equal(summarize({ recovery: 50, sleep: null, workouts: [ago(1, 'running')], now }).scene, 'run');
+  for (const sc of ['run', 'walk', 'hoops', 'idle', 'rest']) assert.match(card({ ...s, scene: sc }), /class="fr fr0"/);
 
   assert.match(card({ level: 'low', heading: 'a <b> & "c"', rows: [] }), /a &lt;b&gt; &amp; &quot;c&quot;/);
   assert.equal((card(summarize({ recovery: 50, sleep: null, workouts: [], now })).match(/class="lv-mid"/g) ?? []).length, 2);
