@@ -89,7 +89,7 @@ function sprite(draw, overlay = () => {}) {
 }
 const limb = (pts, bob = 0) => (set) => pts.forEach(([x, y, c = 'H']) => set(x + 1, y + bob, c));
 
-// Facing the viewer: tousled hair, grin, blue #4 club tank top, shorts, white socks.
+// Facing the viewer: tousled hair, blue #4 club tank top, shorts, white socks.
 // arms: true for both, 'left' to leave the right arm to an overlay, false for none.
 function front(set, row, { bob = 0, asleep = false, arms = true } = {}) {
   const S = (x, y, c) => set(x + 1, y + bob, c), R = (y, a, b, c) => row(y + bob, a + 1, b + 1, c);
@@ -108,8 +108,9 @@ function front(set, row, { bob = 0, asleep = false, arms = true } = {}) {
   R(11, 4, 11, 'J'); R(11, 6, 9, 'h'); S(4, 11, 'k');
   for (let y = 12; y <= 16; y++) { R(y, 4, 11, 'J'); S(4, y, 'k'); S(11, y, 'j'); }
   R(12, 7, 8, 'h');
-  for (const [x, y] of [[5, 13], [7, 13], [5, 14], [7, 14], [5, 15], [6, 15], [7, 15], [7, 16]]) S(x, y, 'W'); // 4
-  S(10, 13, 'W'); // club badge
+  // The number 4 and the club badge.
+  for (const [x, y] of [[5, 13], [7, 13], [5, 14], [7, 14], [5, 15], [6, 15], [7, 15], [7, 16]]) S(x, y, 'W');
+  S(10, 13, 'W');
   if (arms) { R(11, 2, 3, 'H'); R(12, 2, 3, 'H'); S(2, 13, 'H'); S(2, 14, 'h'); S(2, 15, 'H'); S(3, 12, 'h'); }
   if (arms === true) { R(11, 12, 13, 'H'); R(12, 12, 13, 'H'); S(12, 12, 'h'); }
   R(17, 4, 11, 'j'); R(18, 4, 6, 'J'); R(18, 9, 11, 'J'); S(11, 18, 'j');
@@ -170,7 +171,8 @@ function cyclist(set, row, k) {
   sideHead(S, R);
   for (let y = 11; y <= 14; y++) { R(y, 5, 10, 'J'); S(5, y, 'j'); S(10, y, 'k'); }
   R(11, 8, 9, 'h'); R(15, 4, 10, 'J'); S(4, 15, 'j');
-  for (const [x, y, c] of PEDAL[k]) S(x, y, c); // the near leg, drawn with the bike so it shares one outline
+  // The near leg is drawn with the bike so they share one outline.
+  for (const [x, y, c] of PEDAL[k]) S(x, y, c);
 }
 const PEDAL = [
   [[11, 15, 'J'], [11, 16, 'H'], [12, 16, 'H'], [11, 17, 'H'], [12, 17, 'h'], [11, 18, 'h'], [11, 19, 'W'], [10, 20, 'F'], [11, 20, 'F'], [12, 20, 'G']],
@@ -198,7 +200,8 @@ const SCENES = {
   // Back squat: bar across the shoulders, sinking two cells with the knees out.
   lift: [1.6, [0, 1, 2, 1].map((d) => sprite((s, r) => {
     front(s, r, { bob: d, arms: false });
-    if (d) { // bent legs replace the straight ones below the shorts
+    // Bent legs replace the straight ones below the shorts.
+    if (d) {
       for (let y = 18 + d; y <= 23; y++) r(y, 0, 17, '.');
       const knee = d === 2 ? 1 : 0;
       for (const x of [4 - knee, 10 + knee]) { r(19 + d, x + 1, x + 2, 'H'); r(20 + d, x + 1, x + 2, 'h'); }
@@ -218,7 +221,7 @@ const SCENES = {
       limb(RIGHT_ARM_DOWN)(s); s(14, 16, 'D'); s(14, 17, 'D'); stamp(s, RACKET, 13, 18);
     } else {
       limb({ back: [[13, 11], [14, 10], [15, 9, 'h']], up: [[13, 11], [13, 10], [14, 9, 'h']], hit: [[13, 11], [13, 10], [13, 9, 'h']] }[pose])(s);
-      const [hx, hy] = { back: [16, 8], up: [15, 8], hit: [14, 8] }[pose]; // handle just above the hand
+      const [hx, hy] = { back: [16, 8], up: [15, 8], hit: [14, 8] }[pose];
       s(hx, hy - 1, 'D'); stamp(s, RACKET, hx - 1 - (pose === 'hit'), hy - 7);
     }
     stamp(s, ['W.W', '.c.'], sx, sy);
@@ -382,7 +385,8 @@ if (process.argv[2] === 'test') {
   assert.equal(altText(s), 'Fully charged · Slept like a log · Running, on a roll · 3 weeks active in a row · Tinkering with kg-eventplan');
 
   s = summarize({ recovery: 10, sleep: null, workouts: [ago(8)], repo: null, now });
-  assert.equal(altText(s), 'Low-power mode · Rest week'); // streak broken by an empty current week
+  // The streak breaks on an empty current week.
+  assert.equal(altText(s), 'Low-power mode · Rest week');
 
   s = summarize({ recovery: null, sleep: 50, workouts: Array.from({ length: 13 }, (_, i) => ago(i * 7 + 1, 'functional-fitness')), now });
   assert.equal(altText(s), 'Signal lost · Running on coffee · Functional fitness this week · 12+ weeks active in a row');
