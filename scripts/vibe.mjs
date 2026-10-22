@@ -13,9 +13,8 @@ export function summarize({ recovery, sleep, workouts, repo, now = Date.now() })
   if (sleep != null) rows.push({ icon: 'moon', text: sleep >= 85 ? 'Slept like a log' : sleep >= 60 ? 'Decent night' : 'Running on coffee' });
 
   const thisWeek = workouts.filter((w) => now - Date.parse(w.start) < 7 * DAY);
-  const counts = {};
-  for (const w of thisWeek) counts[w.sport_name] = (counts[w.sport_name] ?? 0) + 1;
-  const top = Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0];
+  // The most recent workout picks the sport, whatever was done most this week.
+  const top = thisWeek.reduce((a, w) => (!a || Date.parse(w.start) > Date.parse(a.start) ? w : a), null)?.sport_name;
   const sport = top ? top.replace(/[-_]/g, ' ').replace(/^./, (c) => c.toUpperCase()) : '';
   // The card draws the sport, so its text drops the name; the alt text keeps it.
   rows.push(thisWeek.length >= 3 ? { icon: 'pulse', text: 'On a roll this week', alt: `${sport}, on a roll` }
@@ -399,6 +398,8 @@ if (process.argv[2] === 'test') {
   assert.equal(summarize({ recovery: 50, sleep: null, workouts: [ago(1, 'running')], now }).scene, 'run');
   assert.equal(summarize({ recovery: 50, sleep: null, workouts: [ago(1, 'badminton')], now }).scene, 'badminton');
   assert.equal(summarize({ recovery: 50, sleep: null, workouts: [ago(1, 'cycling')], now }).scene, 'cycle');
+  // Order of the API response doesn't matter; the latest start wins over a more frequent sport.
+  assert.equal(summarize({ recovery: 50, sleep: null, workouts: [ago(2, 'cycling'), ago(0.5, 'basketball'), ago(3, 'cycling'), ago(4, 'cycling')], now }).scene, 'hoops');
   for (const sc of ['run', 'walk', 'hoops', 'idle', 'rest', 'cycle', 'lift', 'badminton']) assert.match(card({ ...s, scene: sc }), /class="fr fr0"/);
 
   assert.match(card({ level: 'low', heading: 'a <b> & "c"', rows: [] }), /a &lt;b&gt; &amp; &quot;c&quot;/);
