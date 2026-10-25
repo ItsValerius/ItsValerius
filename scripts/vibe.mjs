@@ -65,7 +65,8 @@ const FONT = Object.fromEntries(Object.entries({
   '(': '.#|#.|#.|#.|#.|#.|.#', ')': '#.|.#|.#|.#|.#|.#|#.', '&': '.##..|#..#.|#.#..|.#...|#.#.#|#..#.|.##.#', '·': '.|.|.|#',
 }).map(([ch, g]) => [ch, g.split('|')]));
 
-// Draws text as cells of `size` px with Gen 3's light drop shadow one cell down-right; returns [svg, width].
+// Draws text as cells of `size` px with Gen 3's drop shadow one cell down-right; returns [svg, width].
+// `color` and `shadow` are class names, so the card's style can recolour them for dark mode.
 function pixText(str, x, y, size, color, shadow) {
   const runs = [];
   let cx = 0;
@@ -81,7 +82,7 @@ function pixText(str, x, y, size, color, shadow) {
     } });
     cx += g[0].length + 1;
   }
-  const paint = (dx, c) => `<path fill="${c}" d="${runs.map(([i, j, n]) => `M${x + (i + dx) * size} ${y + (j + dx) * size}h${n * size}v${size}h-${n * size}z`).join('')}"/>`;
+  const paint = (dx, c) => `<path class="${c}" d="${runs.map(([i, j, n]) => `M${x + (i + dx) * size} ${y + (j + dx) * size}h${n * size}v${size}h-${n * size}z`).join('')}"/>`;
   return [runs.length ? paint(1, shadow) + paint(0, color) : '', (cx - 1) * size];
 }
 const textWidth = (str, size) => pixText(str, 0, 0, size, '', '')[1];
@@ -106,8 +107,8 @@ const pixIcon = (name, x, y, size) => {
 
 // A Gen 3 text box: dark outline, two-tone blue band, white inside, with stepped pixel corners.
 function box(W, H) {
-  const step = (i, c) => `<rect x="${i + 4}" y="${i}" width="${W - 2 * i - 8}" height="${H - 2 * i}" fill="${c}"/><rect x="${i}" y="${i + 4}" width="${W - 2 * i}" height="${H - 2 * i - 8}" fill="${c}"/><rect x="${i + 2}" y="${i + 2}" width="${W - 2 * i - 4}" height="${H - 2 * i - 4}" fill="${c}"/>`;
-  return step(0, '#283040') + step(2, '#a8c8f0') + step(5, '#6890c8') + step(7, '#f8f8f8');
+  const step = (i, c) => `<g class="${c}"><rect x="${i + 4}" y="${i}" width="${W - 2 * i - 8}" height="${H - 2 * i}"/><rect x="${i}" y="${i + 4}" width="${W - 2 * i}" height="${H - 2 * i - 8}"/><rect x="${i + 2}" y="${i + 2}" width="${W - 2 * i - 4}" height="${H - 2 * i - 4}"/></g>`;
+  return step(0, 'b0') + step(2, 'b1') + step(5, 'b2') + step(7, 'b3');
 }
 
 // Gen 3 battle-box HP bar in 2px cells: a yellow "HP" tag, then a 48-cell bar filled by recovery level.
@@ -348,14 +349,16 @@ function figure(name, level, x, y) {
 
 export function card(summary) {
   const { level, heading, rows, scene } = summary;
-  const W = 540, ink = '#404850', shade = '#d0d0c8', textMax = W - 134 - 12 - 46, rowStart = 84, step = 28;
+  const W = 540, ink = 'ink', shade = 'shade', textMax = W - 134 - 12 - 46, rowStart = 84, step = 28;
   const H = Math.max(rowStart + rows.length * step + 6, scene ? 140 : 0);
   const body = rows.map((r, i) => {
     const y = rowStart + i * step;
     return pixIcon(r.icon, 24, y, 2) + pixText(fit(r.text, 2, textMax), 46, y, 2, ink, shade)[0];
   }).join('');
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(altText(summary))}">
-<style>.lv-high{fill:#70f8a8}.lv-mid{fill:#f8e038}.lv-low{fill:#f85838}</style>
+<style>.lv-high{fill:#70f8a8}.lv-mid{fill:#f8e038}.lv-low{fill:#f85838}
+.b0{fill:#283040}.b1{fill:#a8c8f0}.b2{fill:#6890c8}.b3{fill:#f8f8f8}.ink{fill:#404850}.shade{fill:#d0d0c8}
+@media (prefers-color-scheme:dark){.b0{fill:#8098c8}.b1{fill:#3a5890}.b2{fill:#24406c}.b3{fill:#161c28}.ink{fill:#e8ecf4}.shade{fill:#000}}</style>
 <g shape-rendering="crispEdges">${box(W, H)}
 ${pixText(fit(heading, 3, textMax + 22), 24, 20, 3, ink, shade)[0]}
 ${hpBar(level, 24, 52)}
@@ -467,6 +470,8 @@ if (process.argv[2] === 'test') {
   assert.match(card({ level: 'low', heading: 'a <b> & "c"', rows: [] }), /a &lt;b&gt; &amp; &quot;c&quot;/);
   assert.match(card(summarize({ recovery: 50, sleep: null, workouts: [], now })), /width="48" height="6" class="lv-mid"/);
   assert.doesNotMatch(card({ level: 'unknown', heading: 'x', rows: [] }), /class="lv-unknown"/);
+  // The box and text follow the viewer's colour scheme.
+  assert.match(card({ level: 'mid', heading: 'x', rows: [] }), /@media \(prefers-color-scheme:dark\)\{\.b0/);
   // Long text is shortened to fit beside the sprite.
   assert.ok(fit('Tinkering with a-very-long-repository-name-indeed', 2, 200).endsWith('..'));
   assert.ok(textWidth(fit('Tinkering with a-very-long-repository-name-indeed', 2, 200), 2) <= 200);
