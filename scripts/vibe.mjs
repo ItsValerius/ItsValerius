@@ -36,14 +36,79 @@ export const altText = ({ heading, rows }) => [heading, ...rows.map((r) => r.alt
 
 const esc = (s) => s.replace(/[<>&"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' })[c]);
 
-// Lucide icons (ISC license), 24px grid.
+// 5x7 pixel font (8 rows so g, p, q and y can descend). Glyphs are trimmed to their used columns, so text is proportional.
+const FONT = Object.fromEntries(Object.entries({
+  A: '.###.|#...#|#...#|#####|#...#|#...#|#...#', B: '####.|#...#|#...#|####.|#...#|#...#|####.', C: '.###.|#...#|#....|#....|#....|#...#|.###.',
+  D: '###..|#..#.|#...#|#...#|#...#|#..#.|###..', E: '#####|#....|#....|####.|#....|#....|#####', F: '#####|#....|#....|####.|#....|#....|#....',
+  G: '.###.|#...#|#....|#.###|#...#|#...#|.####', H: '#...#|#...#|#...#|#####|#...#|#...#|#...#', I: '###|.#.|.#.|.#.|.#.|.#.|###',
+  J: '..###|...#.|...#.|...#.|...#.|#..#.|.##..', K: '#...#|#..#.|#.#..|##...|#.#..|#..#.|#...#', L: '#....|#....|#....|#....|#....|#....|#####',
+  M: '#...#|##.##|#.#.#|#.#.#|#...#|#...#|#...#', N: '#...#|#...#|##..#|#.#.#|#..##|#...#|#...#', O: '.###.|#...#|#...#|#...#|#...#|#...#|.###.',
+  P: '####.|#...#|#...#|####.|#....|#....|#....', Q: '.###.|#...#|#...#|#...#|#.#.#|#..#.|.##.#', R: '####.|#...#|#...#|####.|#.#..|#..#.|#...#',
+  S: '.####|#....|#....|.###.|....#|....#|####.', T: '#####|..#..|..#..|..#..|..#..|..#..|..#..', U: '#...#|#...#|#...#|#...#|#...#|#...#|.###.',
+  V: '#...#|#...#|#...#|#...#|#...#|.#.#.|..#..', W: '#...#|#...#|#...#|#.#.#|#.#.#|#.#.#|.#.#.', X: '#...#|#...#|.#.#.|..#..|.#.#.|#...#|#...#',
+  Y: '#...#|#...#|#...#|.#.#.|..#..|..#..|..#..', Z: '#####|....#|...#.|..#..|.#...|#....|#####',
+  a: '....|....|###.|...#|.###|#..#|.###', b: '#...|#...|###.|#..#|#..#|#..#|###.', c: '....|....|.##.|#...|#...|#...|.###',
+  d: '...#|...#|.###|#..#|#..#|#..#|.###', e: '....|....|.##.|#..#|####|#...|.###', f: '..##|.#..|####|.#..|.#..|.#..|.#..',
+  g: '....|....|.###|#..#|#..#|.###|...#|###.', h: '#...|#...|###.|#..#|#..#|#..#|#..#', i: '#|.|#|#|#|#|#', j: '..#|...|..#|..#|..#|..#|#.#|.#.',
+  k: '#...|#...|#..#|#.#.|##..|#.#.|#..#', l: '##.|.#.|.#.|.#.|.#.|.#.|..#', m: '.....|.....|##.#.|#.#.#|#.#.#|#.#.#|#.#.#',
+  n: '....|....|###.|#..#|#..#|#..#|#..#', o: '....|....|.##.|#..#|#..#|#..#|.##.', p: '....|....|###.|#..#|#..#|###.|#...|#...',
+  q: '....|....|.###|#..#|#..#|.###|...#|...#', r: '...|...|#.#|##.|#..|#..|#..', s: '....|....|.###|#...|.##.|...#|###.',
+  t: '.#..|.#..|####|.#..|.#..|.#..|..##', u: '....|....|#..#|#..#|#..#|#..#|.###', v: '.....|.....|#...#|#...#|.#.#.|.#.#.|..#..',
+  w: '.....|.....|#...#|#...#|#.#.#|#.#.#|.#.#.', x: '....|....|#..#|#..#|.##.|#..#|#..#', y: '....|....|#..#|#..#|#..#|.###|...#|###.',
+  z: '....|....|####|...#|.##.|#...|####',
+  0: '.###.|#...#|#..##|#.#.#|##..#|#...#|.###.', 1: '.#.|##.|.#.|.#.|.#.|.#.|###', 2: '.###.|#...#|....#|...#.|..#..|.#...|#####',
+  3: '####.|....#|....#|.###.|....#|....#|####.', 4: '...#.|..##.|.#.#.|#..#.|#####|...#.|...#.', 5: '#####|#....|####.|....#|....#|#...#|.###.',
+  6: '.###.|#....|#....|####.|#...#|#...#|.###.', 7: '#####|....#|...#.|..#..|.#...|.#...|.#...', 8: '.###.|#...#|#...#|.###.|#...#|#...#|.###.',
+  9: '.###.|#...#|#...#|.####|....#|....#|.###.',
+  '.': '.|.|.|.|.|.|#', ',': '..|..|..|..|..|.#|.#|#.', "'": '#|#', '-': '...|...|...|###', '_': '.....|.....|.....|.....|.....|.....|.....|#####',
+  '!': '#|#|#|#|#|.|#', '?': '.###.|#...#|....#|...#.|..#..|.....|..#..', ':': '.|.|#|.|.|#', '+': '...|...|.#.|###|.#.', '/': '...#|...#|..#.|.#..|#...|#...',
+  '(': '.#|#.|#.|#.|#.|#.|.#', ')': '#.|.#|.#|.#|.#|.#|#.', '&': '.##..|#..#.|#.#..|.#...|#.#.#|#..#.|.##.#', '·': '.|.|.|#',
+}).map(([ch, g]) => [ch, g.split('|')]));
+
+// Draws text as cells of `size` px with Gen 3's light drop shadow one cell down-right; returns [svg, width].
+function pixText(str, x, y, size, color, shadow) {
+  const runs = [];
+  let cx = 0;
+  for (const ch of str) {
+    if (ch === ' ') { cx += 3; continue; }
+    const g = FONT[ch] ?? FONT['?'];
+    g.forEach((line, j) => { for (let i = 0; i < line.length; ) {
+      if (line[i] !== '#') { i++; continue; }
+      let n = 0;
+      while (line[i + n] === '#') n++;
+      runs.push([cx + i, j, n]);
+      i += n;
+    } });
+    cx += g[0].length + 1;
+  }
+  const paint = (dx, c) => `<path fill="${c}" d="${runs.map(([i, j, n]) => `M${x + (i + dx) * size} ${y + (j + dx) * size}h${n * size}v${size}h-${n * size}z`).join('')}"/>`;
+  return [runs.length ? paint(1, shadow) + paint(0, color) : '', (cx - 1) * size];
+}
+const textWidth = (str, size) => pixText(str, 0, 0, size, '', '')[1];
+// Shortens text with ".." until it fits.
+function fit(str, size, max) {
+  if (textWidth(str, size) <= max) return str;
+  while (str.length > 1 && textWidth(str + '..', size) > max) str = str.slice(0, -1);
+  return str.trimEnd() + '..';
+}
+
+// 7x7 pixel icons with their colours.
 const ICONS = {
-  moon: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
-  pulse: '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
-  flame: '<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>',
-  code: '<path d="m16 18 6-6-6-6M8 6l-6 6 6 6"/>',
+  moon: ['#f8d038', '..####.|.###...|###....|###....|###....|.###...|..####.'],
+  pulse: ['#f85878', '.##.##.|#######|#######|.#####.|..###..|...#...'],
+  flame: ['#f87828', '...#...|..##...|..###.#|.#####.|#######|##.####|.#####.'],
+  code: ['#3890f8', '..#.#..|.#...#.|#.....#|.#...#.|..#.#..'],
 };
-const icon = (name, x, y, size, cls) => `<g class="${cls}" transform="translate(${x} ${y}) scale(${size / 24})" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[name]}</g>`;
+const pixIcon = (name, x, y, size) => {
+  const [c, g] = ICONS[name];
+  return g.split('|').flatMap((line, j) => [...line].map((p, i) => p === '#' ? `<rect x="${x + i * size}" y="${y + j * size}" width="${size}" height="${size}" fill="${c}"/>` : '')).join('');
+};
+
+// A Gen 3 text box: dark outline, two-tone blue band, white inside, with stepped pixel corners.
+function box(W, H) {
+  const step = (i, c) => `<rect x="${i + 4}" y="${i}" width="${W - 2 * i - 8}" height="${H - 2 * i}" fill="${c}"/><rect x="${i}" y="${i + 4}" width="${W - 2 * i}" height="${H - 2 * i - 8}" fill="${c}"/><rect x="${i + 2}" y="${i + 2}" width="${W - 2 * i - 4}" height="${H - 2 * i - 4}" fill="${c}"/>`;
+  return step(0, '#283040') + step(2, '#a8c8f0') + step(5, '#6890c8') + step(7, '#f8f8f8');
+}
 
 // Gen 3 battle-box HP bar in 2px cells: a yellow "HP" tag, then a 48-cell bar filled by recovery level.
 function hpBar(level, x, y) {
@@ -262,14 +327,15 @@ function figure(name, level, x, y) {
   const [dur, frames, kind, scroll] = SCENES[name];
   const n = frames.length, w = 116, h = 108, px = x - 10, py = y - 6, ox = x + 12, oy = y + 2;
   const body = frames.map((g, k) => {
-    // One rect per horizontal run of same-coloured cells keeps the file small.
-    const rects = g.flatMap((r, j) => r.map((c, i) => {
-      if (c === '.' || r[i - 1] === c) return '';
+    // One path per colour, made of horizontal runs of cells, keeps the file small.
+    const runs = {};
+    g.forEach((r, j) => r.forEach((c, i) => {
+      if (c === '.' || r[i - 1] === c) return;
       let n = 1;
       while (r[i + n] === c) n++;
-      const paint = c === 'G' ? `class="shoe lv-${level}"` : `fill="${PALETTE[c]}"`;
-      return `<rect x="${ox + i * PX}" y="${oy + j * PX}" width="${n * PX}" height="${PX}" ${paint}/>`;
-    })).join('');
+      (runs[c] ??= []).push(`M${ox + i * PX} ${oy + j * PX}h${n * PX}v${PX}h-${n * PX}z`);
+    }));
+    const rects = Object.entries(runs).map(([c, d]) => `<path ${c === 'G' ? `class="shoe lv-${level}"` : `fill="${PALETTE[c]}"`} d="${d.join('')}"/>`).join('');
     return `<g class="fr${k ? '' : ' fr0'}" style="animation:flip${n} ${dur}s steps(1,end) infinite;animation-delay:${(-(n - k) * dur / n).toFixed(3)}s">${rects}</g>`;
   }).join('');
   return `<style>@keyframes flip${n}{0%{opacity:1}${+(100 / n).toFixed(2)}%{opacity:0}100%{opacity:0}}@keyframes scroll{to{transform:translateX(-${8 * PX}px)}}
@@ -282,23 +348,19 @@ function figure(name, level, x, y) {
 
 export function card(summary) {
   const { level, heading, rows, scene } = summary;
-  const W = 480, top = 28, rowStart = 104, step = 30;
-  const h = Math.max(rowStart + (rows.length - 1) * step + 28, scene ? 124 : 0);
+  const W = 540, ink = '#404850', shade = '#d0d0c8', textMax = W - 134 - 12 - 46, rowStart = 84, step = 28;
+  const H = Math.max(rowStart + rows.length * step + 6, scene ? 140 : 0);
   const body = rows.map((r, i) => {
-    const base = rowStart + i * step;
-    return `${icon(r.icon, 29, base - 14.5, 18, 'mut')}<text x="62" y="${base}" class="t">${esc(r.text)}</text>`;
+    const y = rowStart + i * step;
+    return pixIcon(r.icon, 24, y, 2) + pixText(fit(r.text, 2, textMax), 46, y, 2, ink, shade)[0];
   }).join('');
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${h}" viewBox="0 0 ${W} ${h}" role="img" aria-label="${esc(altText(summary))}">
-<style>
-.bg{fill:#ffffff;stroke:#d1d9e0}.hd{fill:#1f2328;font:600 21px system-ui,-apple-system,"Segoe UI",sans-serif;letter-spacing:-.01em}
-.t{fill:#1f2328;font:15px system-ui,-apple-system,"Segoe UI",sans-serif}.mut{stroke:#59636e}
-.lv-high{fill:#70f8a8}.lv-mid{fill:#f8e038}.lv-low{fill:#f85838}
-@media (prefers-color-scheme:dark){.bg{fill:#0d1117;stroke:#3d444d}.hd,.t{fill:#f0f6fc}.mut{stroke:#9198a1}}
-</style>
-<rect class="bg" x=".5" y=".5" width="${W - 1}" height="${h - 1}" rx="12"/>
-<text x="25" y="${top + 24}" class="hd">${esc(heading)}</text>${hpBar(level, 25, top + 34)}
-${body}
-${scene ? figure(scene, level, W - 120, (h - 96) / 2) : ''}
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(altText(summary))}">
+<style>.lv-high{fill:#70f8a8}.lv-mid{fill:#f8e038}.lv-low{fill:#f85838}</style>
+<g shape-rendering="crispEdges">${box(W, H)}
+${pixText(fit(heading, 3, textMax + 22), 24, 20, 3, ink, shade)[0]}
+${hpBar(level, 24, 52)}
+${body}</g>
+${scene ? figure(scene, level, W - 124, (H - 108) / 2 + 6) : ''}
 </svg>
 `;
 }
@@ -405,6 +467,9 @@ if (process.argv[2] === 'test') {
   assert.match(card({ level: 'low', heading: 'a <b> & "c"', rows: [] }), /a &lt;b&gt; &amp; &quot;c&quot;/);
   assert.match(card(summarize({ recovery: 50, sleep: null, workouts: [], now })), /width="48" height="6" class="lv-mid"/);
   assert.doesNotMatch(card({ level: 'unknown', heading: 'x', rows: [] }), /class="lv-unknown"/);
+  // Long text is shortened to fit beside the sprite.
+  assert.ok(fit('Tinkering with a-very-long-repository-name-indeed', 2, 200).endsWith('..'));
+  assert.ok(textWidth(fit('Tinkering with a-very-long-repository-name-indeed', 2, 200), 2) <= 200);
   console.log('ok');
 } else {
   await main();
