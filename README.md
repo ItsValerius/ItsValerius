@@ -6,5 +6,5 @@ I'm a web developer who mostly builds with **TypeScript / Next.js** and **Larave
 
 **Today's vibe** (powered by my WHOOP):
 <!-- VIBE:START -->
-<img src="https://raw.githubusercontent.com/ItsValerius/ItsValerius/main/vibe.svg?v=a39ad71a" alt="Cruising · Decent night · Badminton, on a roll · 12+ weeks active in a row · Tinkering with personal">
+<img src="https://raw.githubusercontent.com/ItsValerius/ItsValerius/main/vibe.svg?v=ca569928" alt="Cruising · Decent night · Basketball, on a roll · 12+ weeks active in a row · Tinkering with personal">
 <!-- VIBE:END -->
