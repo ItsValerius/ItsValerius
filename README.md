@@ -1,6 +1,6 @@
 # Hi, I'm Valentin 👋
 
-I'm a web developer who mostly builds with **TypeScript / Next.js** and **Laravel**, with some **Go** on the side and **C# / .NET** currently on my learning list.
+I'm a web developer who mostly builds with **TypeScript / Next.js** and **Laravel**.
 
 🌐 [kueck.me](https://kueck.me)
 
