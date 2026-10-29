@@ -1,0 +1,13 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "vibe",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-10-01",
+  // Same time as the old Action: 08:07 UTC every day.
+  "triggers": { "crons": ["7 8 * * *"] },
+  // Holds the rotating WHOOP refresh token. Create it with `npx wrangler kv namespace create VIBE_KV`
+  // and paste the id it prints here.
+  "kv_namespaces": [{ "binding": "VIBE_KV", "id": "REPLACE_WITH_KV_NAMESPACE_ID" }],
+  "observability": { "enabled": true }
+  // Secrets (npx wrangler secret put <NAME>): WHOOP_CLIENT_ID, WHOOP_CLIENT_SECRET, GITHUB_TOKEN, ADMIN_TOKEN
+}
