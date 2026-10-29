@@ -1,0 +1,17 @@
+# One-time handoff: GitHub secrets can't be read back, so this sends the current WHOOP refresh token
+# from the old Action's secret to the Worker's KV. Run it once after deploying the Worker, then delete
+# this file and the old secrets (see DEPLOY.md).
+name: Hand WHOOP token to the Worker
+on: workflow_dispatch
+
+jobs:
+  handoff:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          printf '%s' "$WHOOP_REFRESH_TOKEN" | curl -fsS -X POST "$WORKER_URL/seed" \
+            -H "Authorization: Bearer $ADMIN_TOKEN" --data-binary @-
+        env:
+          WHOOP_REFRESH_TOKEN: ${{ secrets.WHOOP_REFRESH_TOKEN }}
+          ADMIN_TOKEN: ${{ secrets.VIBE_ADMIN_TOKEN }}
+          WORKER_URL: ${{ vars.VIBE_WORKER_URL }}

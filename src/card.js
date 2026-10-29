@@ -1,9 +1,6 @@
 // Builds the profile card from WHOOP data. Only coarse buckets are published, never raw values.
-import { readFileSync, writeFileSync } from 'node:fs';
-import { createHash } from 'node:crypto';
+// Pure functions only, so the Worker and the tests can share them.
 
-const API = 'https://api.prod.whoop.com/developer/v2';
-const USER = 'ItsValerius';
 const DAY = 864e5;
 
 export function summarize({ recovery, sleep, workouts, repo, now = Date.now() }) {
@@ -34,7 +31,7 @@ export function summarize({ recovery, sleep, workouts, repo, now = Date.now() })
 
 export const altText = ({ heading, rows }) => [heading, ...rows.map((r) => r.alt ?? r.text)].join(' · ');
 
-const esc = (s) => s.replace(/[<>&"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' })[c]);
+export const esc = (s) => s.replace(/[<>&"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' })[c]);
 
 // 5x7 pixel font (8 rows so g, p, q and y can descend). Glyphs are trimmed to their used columns, so text is proportional.
 const FONT = Object.fromEntries(Object.entries({
@@ -85,9 +82,9 @@ function pixText(str, x, y, size, color, shadow) {
   const paint = (dx, c) => `<path class="${c}" d="${runs.map(([i, j, n]) => `M${x + (i + dx) * size} ${y + (j + dx) * size}h${n * size}v${size}h-${n * size}z`).join('')}"/>`;
   return [runs.length ? paint(1, shadow) + paint(0, color) : '', (cx - 1) * size];
 }
-const textWidth = (str, size) => pixText(str, 0, 0, size, '', '')[1];
+export const textWidth = (str, size) => pixText(str, 0, 0, size, '', '')[1];
 // Shortens text with ".." until it fits.
-function fit(str, size, max) {
+export function fit(str, size, max) {
   if (textWidth(str, size) <= max) return str;
   while (str.length > 1 && textWidth(str + '..', size) > max) str = str.slice(0, -1);
   return str.trimEnd() + '..';
@@ -366,116 +363,4 @@ ${body}</g>
 ${scene ? figure(scene, level, W - 124, (H - 108) / 2 + 6) : ''}
 </svg>
 `;
-}
-
-async function token() {
-  const res = await fetch('https://api.prod.whoop.com/oauth/oauth2/token', {
-    method: 'POST',
-    body: new URLSearchParams({
-      grant_type: 'refresh_token',
-      refresh_token: process.env.WHOOP_REFRESH_TOKEN,
-      client_id: process.env.WHOOP_CLIENT_ID,
-      client_secret: process.env.WHOOP_CLIENT_SECRET,
-      scope: 'offline',
-    }),
-  });
-  if (!res.ok) throw new Error(`token refresh failed: ${res.status}`);
-  const t = await res.json();
-  // WHOOP rotates refresh tokens; the workflow stores this one as the new secret.
-  writeFileSync(process.env.NEW_TOKEN_FILE ?? '.new_refresh_token', t.refresh_token);
-  return t.access_token;
-}
-
-async function get(path, accessToken) {
-  const res = await fetch(API + path, { headers: { Authorization: `Bearer ${accessToken}` } });
-  if (!res.ok) throw new Error(`${path} failed: ${res.status}`);
-  return res.json();
-}
-
-async function workoutsSince(start, accessToken) {
-  const all = [];
-  let next = '';
-  for (let page = 0; page < 20; page++) {
-    const body = await get(`/activity/workout?limit=25&start=${start}${next && `&nextToken=${encodeURIComponent(next)}`}`, accessToken);
-    all.push(...(body.records ?? []));
-    if (!(next = body.next_token)) break;
-  }
-  return all;
-}
-
-// Public events only. Errors are ignored so the card still renders.
-async function lastPushedRepo() {
-  try {
-    const headers = process.env.GITHUB_TOKEN ? { Authorization: `Bearer ${process.env.GITHUB_TOKEN}` } : {};
-    const events = await (await fetch(`https://api.github.com/users/${USER}/events/public?per_page=100`, { headers })).json();
-    return events.find((e) => e.type === 'PushEvent' && e.repo.name !== `${USER}/${USER}`)?.repo.name.split('/')[1] ?? null;
-  } catch {
-    return null;
-  }
-}
-
-async function main() {
-  const at = await token();
-  const [rec, slp, wo, repo] = await Promise.all([
-    get('/recovery?limit=1', at),
-    get('/activity/sleep?limit=1', at),
-    workoutsSince(new Date(Date.now() - 12 * 7 * DAY).toISOString(), at),
-    lastPushedRepo(),
-  ]);
-  const summary = summarize({
-    recovery: rec.records?.[0]?.score?.recovery_score ?? null,
-    sleep: slp.records?.[0]?.score?.sleep_performance_percentage ?? null,
-    workouts: wo,
-    repo,
-  });
-  const svg = card(summary);
-  writeFileSync('vibe.svg', svg);
-  // Content hash in the URL so GitHub's image cache can't serve a stale card. The URL is absolute because on the
-  // profile page a relative src redirects to raw.githubusercontent.com and drops the query.
-  const v = createHash('sha256').update(svg).digest('hex').slice(0, 8);
-  const readme = readFileSync('README.md', 'utf8');
-  const img = `<img src="https://raw.githubusercontent.com/${USER}/${USER}/main/vibe.svg?v=${v}" alt="${esc(altText(summary))}">`;
-  writeFileSync('README.md', readme.replace(/(<!-- VIBE:START -->)[\s\S]*?(<!-- VIBE:END -->)/, `$1\n${img}\n$2`));
-  console.log(altText(summary));
-}
-
-if (process.argv[2] === 'test') {
-  const { strict: assert } = await import('node:assert');
-  const now = Date.parse('2026-10-19T12:00:00Z');
-  const ago = (d, sport = 'running') => ({ start: new Date(now - d * DAY).toISOString(), sport_name: sport });
-
-  let s = summarize({ recovery: 80, sleep: 90, workouts: [ago(1), ago(2), ago(3, 'cycling'), ago(9), ago(16)], repo: 'kg-eventplan', now });
-  assert.equal(s.level, 'high');
-  assert.equal(altText(s), 'Fully charged · Slept like a log · Running, on a roll · 3 weeks active in a row · Tinkering with kg-eventplan');
-
-  s = summarize({ recovery: 10, sleep: null, workouts: [ago(8)], repo: null, now });
-  // The streak breaks on an empty current week.
-  assert.equal(altText(s), 'Low-power mode · Rest week');
-
-  s = summarize({ recovery: null, sleep: 50, workouts: Array.from({ length: 13 }, (_, i) => ago(i * 7 + 1, 'functional-fitness')), now });
-  assert.equal(altText(s), 'Signal lost · Running on coffee · Functional fitness this week · 12+ weeks active in a row');
-
-  assert.equal(s.scene, 'lift');
-  assert.equal(summarize({ recovery: 50, sleep: null, workouts: [ago(1, 'cycling')], now }).rows[0].text, 'Moving this week');
-  assert.equal(summarize({ recovery: 50, sleep: null, workouts: [], now }).scene, 'rest');
-  assert.equal(summarize({ recovery: 50, sleep: null, workouts: [ago(1, 'yoga')], now }).scene, 'idle');
-  assert.equal(summarize({ recovery: 50, sleep: null, workouts: [ago(1, 'basketball')], now }).scene, 'hoops');
-  assert.equal(summarize({ recovery: 50, sleep: null, workouts: [ago(1, 'running')], now }).scene, 'run');
-  assert.equal(summarize({ recovery: 50, sleep: null, workouts: [ago(1, 'badminton')], now }).scene, 'badminton');
-  assert.equal(summarize({ recovery: 50, sleep: null, workouts: [ago(1, 'cycling')], now }).scene, 'cycle');
-  // Order of the API response doesn't matter; the latest start wins over a more frequent sport.
-  assert.equal(summarize({ recovery: 50, sleep: null, workouts: [ago(2, 'cycling'), ago(0.5, 'basketball'), ago(3, 'cycling'), ago(4, 'cycling')], now }).scene, 'hoops');
-  for (const sc of ['run', 'walk', 'hoops', 'idle', 'rest', 'cycle', 'lift', 'badminton']) assert.match(card({ ...s, scene: sc }), /class="fr fr0"/);
-
-  assert.match(card({ level: 'low', heading: 'a <b> & "c"', rows: [] }), /a &lt;b&gt; &amp; &quot;c&quot;/);
-  assert.match(card(summarize({ recovery: 50, sleep: null, workouts: [], now })), /width="48" height="6" class="lv-mid"/);
-  assert.doesNotMatch(card({ level: 'unknown', heading: 'x', rows: [] }), /class="lv-unknown"/);
-  // The box and text follow the viewer's colour scheme.
-  assert.match(card({ level: 'mid', heading: 'x', rows: [] }), /@media \(prefers-color-scheme:dark\)\{\.b0/);
-  // Long text is shortened to fit beside the sprite.
-  assert.ok(fit('Tinkering with a-very-long-repository-name-indeed', 2, 200).endsWith('..'));
-  assert.ok(textWidth(fit('Tinkering with a-very-long-repository-name-indeed', 2, 200), 2) <= 200);
-  console.log('ok');
-} else {
-  await main();
 }

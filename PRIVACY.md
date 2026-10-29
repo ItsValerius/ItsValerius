@@ -1,6 +1,6 @@
 # Privacy Policy – Profile Vibe
 
-_Last updated: 2026-10-19_
+_Last updated: 2026-10-29_
 
 This is a personal, non-commercial app used only by its author to show a vague daily status line on their GitHub profile.
 
@@ -8,7 +8,7 @@ This is a personal, non-commercial app used only by its author to show a vague d
 
 **What it publishes:** only a coarse summary (e.g. "🔋 fully charged · ☕ decent night · 🚶 moving"). Raw values are never published.
 
-**What it stores:** nothing. Data is fetched, turned into the summary, and discarded during each run. The only stored item is the OAuth refresh token, kept as an encrypted secret.
+**What it stores:** nothing. Data is fetched, turned into the summary, and discarded during each run. The only stored item is the OAuth refresh token, kept in Cloudflare Workers KV on the author's account.
 
 **Sharing:** data is not sold or shared with anyone.
 
